@@ -51,10 +51,6 @@ Each command lives in `src/commands/<name>.ts` and exports a `register<Name>Comm
 - **Test location**: `test/commands/` mirrors `src/commands/`, `test/utils/` mirrors `src/utils/`
 - Use `process.exitCode = 1` instead of `process.exit(1)` for testability
 
-## Design Spec
-
-Full design documentation is in `mulch-design-spec.md` at the repo root, covering architecture decisions, governance model, and the expertise loop.
-
 ## Issue Tracking
 
 This project uses **bd (beads)** for issue tracking.
