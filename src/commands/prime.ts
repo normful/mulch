@@ -10,12 +10,15 @@ import {
   formatPrimeOutputXml,
   formatDomainExpertisePlain,
   formatPrimeOutputPlain,
+  formatDomainExpertiseCompact,
+  formatPrimeOutputCompact,
   formatMcpOutput,
 } from "../utils/format.js";
 import type { McpDomain, PrimeFormat } from "../utils/format.js";
 
 interface PrimeOptions {
   full?: boolean;
+  compact?: boolean;
   mcp?: boolean;
   format?: PrimeFormat;
   export?: string;
@@ -28,6 +31,7 @@ export function registerPrimeCommand(program: Command): void {
     .description("Generate a priming prompt from expertise records")
     .argument("[domains...]", "optional domain(s) to scope output to")
     .option("--full", "include full record details (classification, evidence)")
+    .option("--compact", "one-liner per record, no section headers")
     .option("--mcp", "output in MCP-compatible JSON format")
     .option("--domain <domains...>", "domain(s) to include")
     .addOption(
@@ -75,37 +79,47 @@ export function registerPrimeCommand(program: Command): void {
             const records = await readExpertiseFile(filePath);
             const lastUpdated = await getFileModTime(filePath);
 
-            switch (format) {
-              case "xml":
-                domainSections.push(
-                  formatDomainExpertiseXml(domain, records, lastUpdated),
-                );
-                break;
-              case "plain":
-                domainSections.push(
-                  formatDomainExpertisePlain(domain, records, lastUpdated),
-                );
-                break;
-              default:
-                domainSections.push(
-                  formatDomainExpertise(domain, records, lastUpdated, {
-                    full: options.full,
-                  }),
-                );
-                break;
+            if (options.compact) {
+              domainSections.push(
+                formatDomainExpertiseCompact(domain, records, lastUpdated),
+              );
+            } else {
+              switch (format) {
+                case "xml":
+                  domainSections.push(
+                    formatDomainExpertiseXml(domain, records, lastUpdated),
+                  );
+                  break;
+                case "plain":
+                  domainSections.push(
+                    formatDomainExpertisePlain(domain, records, lastUpdated),
+                  );
+                  break;
+                default:
+                  domainSections.push(
+                    formatDomainExpertise(domain, records, lastUpdated, {
+                      full: options.full,
+                    }),
+                  );
+                  break;
+              }
             }
           }
 
-          switch (format) {
-            case "xml":
-              output = formatPrimeOutputXml(domainSections);
-              break;
-            case "plain":
-              output = formatPrimeOutputPlain(domainSections);
-              break;
-            default:
-              output = formatPrimeOutput(domainSections);
-              break;
+          if (options.compact) {
+            output = formatPrimeOutputCompact(domainSections);
+          } else {
+            switch (format) {
+              case "xml":
+                output = formatPrimeOutputXml(domainSections);
+                break;
+              case "plain":
+                output = formatPrimeOutputPlain(domainSections);
+                break;
+              default:
+                output = formatPrimeOutput(domainSections);
+                break;
+            }
           }
         }
 

@@ -8,6 +8,7 @@ import {
   filterByType,
   countRecords,
   createExpertiseFile,
+  searchRecords,
 } from "../../src/utils/expertise.js";
 import type { ExpertiseRecord } from "../../src/schemas/record.js";
 
@@ -141,6 +142,41 @@ describe("expertise utils", () => {
 
     it("returns 0 for empty array", () => {
       expect(countRecords([])).toBe(0);
+    });
+  });
+
+  describe("searchRecords with arrays", () => {
+    it("finds records by tag value", () => {
+      const records: ExpertiseRecord[] = [
+        {
+          type: "convention",
+          content: "Something unrelated",
+          classification: "tactical",
+          recorded_at: new Date().toISOString(),
+          tags: ["esm", "typescript"],
+        },
+        makeConvention("No tags here"),
+      ];
+      const matches = searchRecords(records, "esm");
+      expect(matches).toHaveLength(1);
+      expect((matches[0] as { content: string }).content).toBe(
+        "Something unrelated",
+      );
+    });
+
+    it("finds records by files array value", () => {
+      const records: ExpertiseRecord[] = [
+        {
+          type: "pattern",
+          name: "test-pattern",
+          description: "desc",
+          classification: "tactical",
+          recorded_at: new Date().toISOString(),
+          files: ["src/foo.ts"],
+        },
+      ];
+      const matches = searchRecords(records, "foo.ts");
+      expect(matches).toHaveLength(1);
     });
   });
 });

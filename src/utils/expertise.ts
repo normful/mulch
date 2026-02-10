@@ -131,6 +131,13 @@ export function searchRecords(
       if (typeof value === "string" && value.toLowerCase().includes(lowerQuery)) {
         return true;
       }
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === "string" && item.toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
     }
     return false;
   });

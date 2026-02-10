@@ -7,7 +7,7 @@ import { formatDomainExpertise } from "../utils/format.js";
 export function registerSearchCommand(program: Command): void {
   program
     .command("search")
-    .argument("<query>", "search string (case-insensitive substring match)")
+    .argument("[query]", "search string (case-insensitive substring match)")
     .description("Search expertise records across domains")
     .option("--domain <domain>", "limit search to a specific domain")
     .addOption(
@@ -20,12 +20,19 @@ export function registerSearchCommand(program: Command): void {
         "guide",
       ]),
     )
+    .option("--tag <tag>", "filter by tag")
     .action(
       async (
-        query: string,
-        options: { domain?: string; type?: string },
+        query: string | undefined,
+        options: { domain?: string; type?: string; tag?: string },
       ) => {
         try {
+          if (!query && !options.type && !options.domain && !options.tag) {
+            console.error("Error: Provide a search query or use --type, --domain, or --tag to filter.");
+            process.exitCode = 1;
+            return;
+          }
+
           const config = await readConfig();
 
           let domainsToSearch: string[];
@@ -55,7 +62,14 @@ export function registerSearchCommand(program: Command): void {
               records = filterByType(records, options.type);
             }
 
-            const matches = searchRecords(records, query);
+            if (options.tag) {
+              const tagLower = options.tag.toLowerCase();
+              records = records.filter((r) =>
+                r.tags?.some((t) => t.toLowerCase() === tagLower),
+              );
+            }
+
+            const matches = query ? searchRecords(records, query) : records;
             if (matches.length > 0) {
               totalMatches += matches.length;
               sections.push(
@@ -64,8 +78,9 @@ export function registerSearchCommand(program: Command): void {
             }
           }
 
+          const label = query ? `matching "${query}"` : "matching filters";
           if (sections.length === 0) {
-            console.log(`No records matching "${query}" found.`);
+            console.log(`No records ${label} found.`);
           } else {
             console.log(sections.join("\n\n"));
             console.log(`\n${totalMatches} match${totalMatches === 1 ? "" : "es"} found.`);

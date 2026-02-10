@@ -39,6 +39,7 @@ export function registerRecordCommand(program: Command): void {
     .option("--title <title>", "title for decision records")
     .option("--rationale <rationale>", "rationale for decision records")
     .option("--files <files>", "related files (comma-separated)")
+    .option("--tags <tags>", "comma-separated tags")
     .option("--evidence-commit <commit>", "evidence: commit hash")
     .option("--evidence-issue <issue>", "evidence: issue reference")
     .option("--evidence-file <file>", "evidence: file path")
@@ -79,6 +80,14 @@ export function registerRecordCommand(program: Command): void {
             evidence.file = options.evidenceFile as string;
         }
 
+        const tags =
+          typeof options.tags === "string"
+            ? options.tags
+                .split(",")
+                .map((t) => (t as string).trim())
+                .filter(Boolean)
+            : undefined;
+
         let record: ExpertiseRecord;
 
         switch (recordType) {
@@ -98,6 +107,7 @@ export function registerRecordCommand(program: Command): void {
               classification,
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
+              ...(tags && tags.length > 0 && { tags }),
             };
             break;
           }
@@ -124,6 +134,7 @@ export function registerRecordCommand(program: Command): void {
               ...(typeof options.files === "string" && {
                 files: options.files.split(","),
               }),
+              ...(tags && tags.length > 0 && { tags }),
             };
             break;
           }
@@ -146,6 +157,7 @@ export function registerRecordCommand(program: Command): void {
               classification,
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
+              ...(tags && tags.length > 0 && { tags }),
             };
             break;
           }
@@ -168,6 +180,7 @@ export function registerRecordCommand(program: Command): void {
               classification,
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
+              ...(tags && tags.length > 0 && { tags }),
             };
             break;
           }
@@ -194,6 +207,7 @@ export function registerRecordCommand(program: Command): void {
               ...(typeof options.files === "string" && {
                 files: options.files.split(","),
               }),
+              ...(tags && tags.length > 0 && { tags }),
             };
             break;
           }
@@ -217,6 +231,7 @@ export function registerRecordCommand(program: Command): void {
               classification,
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
+              ...(tags && tags.length > 0 && { tags }),
             };
             break;
           }

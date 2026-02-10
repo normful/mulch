@@ -13,6 +13,7 @@ interface BaseRecord {
   classification: Classification;
   recorded_at: string;
   evidence?: Evidence;
+  tags?: string[];
 }
 
 export interface ConventionRecord extends BaseRecord {

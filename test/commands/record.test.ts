@@ -290,4 +290,67 @@ describe("record command", () => {
 
     expect(validate(record)).toBe(true);
   });
+
+  it("record with tags validates against schema", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "pattern",
+      name: "tagged-pattern",
+      description: "A pattern with tags",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+      tags: ["esm", "typescript"],
+    };
+
+    expect(validate(record)).toBe(true);
+  });
+
+  it("record without tags still validates (backward compat)", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "convention",
+      content: "No tags here",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+
+    expect(validate(record)).toBe(true);
+  });
+
+  it("record with tags is stored and read back correctly", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record: ExpertiseRecord = {
+      type: "pattern",
+      name: "tagged-pattern",
+      description: "A pattern with tags",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+      tags: ["async", "performance"],
+    };
+    await appendRecord(filePath, record);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    expect(records[0].tags).toEqual(["async", "performance"]);
+  });
+
+  it("tags with all record types validate", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+    const tags = ["tag1", "tag2"];
+    const base = { classification: "tactical", recorded_at: new Date().toISOString(), tags };
+
+    expect(validate({ type: "convention", content: "test", ...base })).toBe(true);
+    expect(validate({ type: "pattern", name: "p", description: "d", ...base })).toBe(true);
+    expect(validate({ type: "failure", description: "d", resolution: "r", ...base })).toBe(true);
+    expect(validate({ type: "decision", title: "t", rationale: "r", ...base })).toBe(true);
+    expect(validate({ type: "reference", name: "r", description: "d", ...base })).toBe(true);
+    expect(validate({ type: "guide", name: "g", description: "d", ...base })).toBe(true);
+  });
 });

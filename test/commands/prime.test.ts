@@ -22,6 +22,8 @@ import {
   formatPrimeOutputXml,
   formatDomainExpertisePlain,
   formatPrimeOutputPlain,
+  formatDomainExpertiseCompact,
+  formatPrimeOutputCompact,
   formatMcpOutput,
 } from "../../src/utils/format.js";
 
@@ -717,6 +719,146 @@ describe("prime command", () => {
       const targetDomains = unique.length > 0 ? unique : config.domains;
 
       expect(targetDomains).toEqual(["testing", "architecture"]);
+    });
+  });
+
+  describe("compact mode", () => {
+    it("outputs one-liner per record with type tags", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["database"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("database", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "convention",
+        content: "Use WAL mode for SQLite",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "pattern",
+        name: "fts5-external-content",
+        description: "External content FTS5 with triggers",
+        files: ["src/db/fts.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "failure",
+        description: "FTS5 queries crash without escaping",
+        resolution: "Use escapeFts5Term()",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "decision",
+        title: "SQLite over PostgreSQL",
+        rationale: "Simpler deployment",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "schema-file",
+        description: "Database schema definition",
+        files: ["src/db/schema.sql"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "guide",
+        name: "add-migration",
+        description: "NNN_description.sql naming convention",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertiseCompact("database", records, lastUpdated);
+
+      expect(section).toContain("## database (6 entries");
+      expect(section).toContain("- [convention] Use WAL mode for SQLite");
+      expect(section).toContain("- [pattern] fts5-external-content: External content FTS5 with triggers (src/db/fts.ts)");
+      expect(section).toContain("- [failure] FTS5 queries crash without escaping → Use escapeFts5Term()");
+      expect(section).toContain("- [decision] SQLite over PostgreSQL: Simpler deployment");
+      expect(section).toContain("- [reference] schema-file: src/db/schema.sql");
+      expect(section).toContain("- [guide] add-migration: NNN_description.sql naming convention");
+      // No section headers like ### Conventions
+      expect(section).not.toContain("###");
+    });
+
+    it("reference without files falls back to description", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "api-docs",
+        description: "External API documentation",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertiseCompact("testing", records, lastUpdated);
+
+      expect(section).toContain("- [reference] api-docs: External API documentation");
+    });
+
+    it("compact wrapper omits recording instructions", () => {
+      const output = formatPrimeOutputCompact([]);
+      expect(output).toContain("# Project Expertise (via Mulch)");
+      expect(output).toContain("No expertise recorded yet");
+      expect(output).not.toContain("## Recording New Learnings");
+    });
+
+    it("compact with multiple domains", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["db", "api"] },
+        tmpDir,
+      );
+      const dbPath = getExpertisePath("db", tmpDir);
+      const apiPath = getExpertisePath("api", tmpDir);
+      await createExpertiseFile(dbPath);
+      await createExpertiseFile(apiPath);
+
+      await appendRecord(dbPath, {
+        type: "convention",
+        content: "Use WAL mode",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(apiPath, {
+        type: "decision",
+        title: "REST over GraphQL",
+        rationale: "Simpler tooling",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const dbRecords = await readExpertiseFile(dbPath);
+      const dbUpdated = await getFileModTime(dbPath);
+      const apiRecords = await readExpertiseFile(apiPath);
+      const apiUpdated = await getFileModTime(apiPath);
+
+      const sections = [
+        formatDomainExpertiseCompact("db", dbRecords, dbUpdated),
+        formatDomainExpertiseCompact("api", apiRecords, apiUpdated),
+      ];
+      const output = formatPrimeOutputCompact(sections);
+
+      expect(output).toContain("## db (1 entries");
+      expect(output).toContain("## api (1 entries");
+      expect(output).toContain("- [convention] Use WAL mode");
+      expect(output).toContain("- [decision] REST over GraphQL: Simpler tooling");
     });
   });
 });

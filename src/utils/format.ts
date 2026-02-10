@@ -34,6 +34,9 @@ function formatEvidence(evidence: ConventionRecord["evidence"]): string {
 function formatRecordMeta(r: ExpertiseRecord, full: boolean): string {
   if (!full) return "";
   const parts = [`(${r.classification})${formatEvidence(r.evidence)}`];
+  if (r.tags && r.tags.length > 0) {
+    parts.push(`[tags: ${r.tags.join(", ")}]`);
+  }
   return " " + parts.join(" ");
 }
 
@@ -99,6 +102,60 @@ function formatGuides(records: GuideRecord[], full = false): string {
   for (const r of records) {
     lines.push(`- **${r.name}**: ${r.description}${formatRecordMeta(r, full)}`);
   }
+  return lines.join("\n");
+}
+
+function compactLine(r: ExpertiseRecord): string {
+  switch (r.type) {
+    case "convention":
+      return `- [convention] ${r.content}`;
+    case "pattern": {
+      const files = r.files && r.files.length > 0 ? ` (${r.files.join(", ")})` : "";
+      return `- [pattern] ${r.name}: ${r.description}${files}`;
+    }
+    case "failure":
+      return `- [failure] ${r.description} → ${r.resolution}`;
+    case "decision":
+      return `- [decision] ${r.title}: ${r.rationale}`;
+    case "reference": {
+      const refFiles = r.files && r.files.length > 0 ? `: ${r.files.join(", ")}` : `: ${r.description}`;
+      return `- [reference] ${r.name}${refFiles}`;
+    }
+    case "guide":
+      return `- [guide] ${r.name}: ${r.description}`;
+  }
+}
+
+export function formatDomainExpertiseCompact(
+  domain: string,
+  records: ExpertiseRecord[],
+  lastUpdated: Date | null,
+): string {
+  const updatedStr = lastUpdated ? `, updated ${formatTimeAgo(lastUpdated)}` : "";
+  const lines: string[] = [];
+
+  lines.push(`## ${domain} (${records.length} entries${updatedStr})`);
+  for (const r of records) {
+    lines.push(compactLine(r));
+  }
+
+  return lines.join("\n");
+}
+
+export function formatPrimeOutputCompact(
+  domainSections: string[],
+): string {
+  const lines: string[] = [];
+
+  lines.push("# Project Expertise (via Mulch)");
+  lines.push("");
+
+  if (domainSections.length === 0) {
+    lines.push("No expertise recorded yet. Use `mulch add <domain>` to create a domain, then `mulch record` to add entries.");
+  } else {
+    lines.push(domainSections.join("\n\n"));
+  }
+
   return lines.join("\n");
 }
 
@@ -233,6 +290,9 @@ export function formatDomainExpertiseXml(
         lines.push(`    <name>${xmlEscape(r.name)}</name>`);
         lines.push(`    <description>${xmlEscape(r.description)}</description>`);
         break;
+    }
+    if (r.tags && r.tags.length > 0) {
+      lines.push(`    <tags>${r.tags.map(xmlEscape).join(", ")}</tags>`);
     }
     lines.push(`  </${r.type}>`);
   }
