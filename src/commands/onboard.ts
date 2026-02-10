@@ -8,23 +8,27 @@ const SNIPPET_DEFAULT = `## Project Expertise (Mulch)
 
 This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
 
-**Before starting work**, run:
+**At the start of every session**, run:
 \`\`\`bash
 mulch prime
 \`\`\`
 
-**After completing work**, record learnings:
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+
+When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
+record it with:
 \`\`\`bash
-mulch record <domain> --type <convention|pattern|failure|decision> --description "..."
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
 \`\`\`
 
-Run \`mulch status\` to see available domains and expertise health.
+Run \`mulch status\` to check domain health and entry counts.
+Run \`mulch --help\` for full usage.
 
 ### Session Completion Checklist
 
 1. Record learnings:
    \`\`\`bash
-   mulch record <domain> --type <convention|pattern|failure|decision> --description "..."
+   mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
    \`\`\`
 2. Validate records:
    \`\`\`bash
@@ -45,48 +49,7 @@ function getSnippet(provider: string | undefined): string {
     return SNIPPET_DEFAULT;
   }
 
-  // Provider-specific snippets customize the phrasing slightly
-  if (provider === "claude") {
-    return `## Project Expertise (Mulch)
-
-This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
-
-**At the start of every session**, run:
-\`\`\`bash
-mulch prime
-\`\`\`
-
-This injects project-specific conventions, patterns, and decisions into your context.
-
-**After completing work**, record what you learned:
-\`\`\`bash
-mulch record <domain> --type <convention|pattern|failure|decision> --description "..."
-\`\`\`
-
-Run \`mulch status\` to check domain health and entry counts.
-
-### Session Completion Checklist
-
-1. Record learnings:
-   \`\`\`bash
-   mulch record <domain> --type <convention|pattern|failure|decision> --description "..."
-   \`\`\`
-2. Validate records:
-   \`\`\`bash
-   mulch validate
-   \`\`\`
-3. Commit changes:
-   \`\`\`bash
-   git add .mulch/ && git commit -m "Update expertise"
-   \`\`\`
-4. Push to share:
-   \`\`\`bash
-   git push
-   \`\`\`
-`;
-  }
-
-  // For any other provider, use the default snippet
+  // All providers use the same standardized snippet
   return SNIPPET_DEFAULT;
 }
 

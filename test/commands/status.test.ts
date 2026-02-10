@@ -76,7 +76,7 @@ describe("status command", () => {
 
     expect(output).toContain("Mulch Status");
     expect(output).toContain("testing");
-    expect(output).toContain("1 entries");
+    expect(output).toContain("1 records");
   });
 
   it("shows multiple domains in status", async () => {
@@ -123,9 +123,9 @@ describe("status command", () => {
 
     const output = formatStatusOutput(domainStats, config.governance);
     expect(output).toContain("testing");
-    expect(output).toContain("1 entries");
+    expect(output).toContain("1 records");
     expect(output).toContain("architecture");
-    expect(output).toContain("2 entries");
+    expect(output).toContain("2 records");
   });
 
   it("shows warning when entries reach max_entries threshold", () => {

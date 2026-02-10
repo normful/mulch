@@ -173,7 +173,7 @@ export function formatDomainExpertiseCompact(
   const updatedStr = lastUpdated ? `, updated ${formatTimeAgo(lastUpdated)}` : "";
   const lines: string[] = [];
 
-  lines.push(`## ${domain} (${records.length} entries${updatedStr})`);
+  lines.push(`## ${domain} (${records.length} records${updatedStr})`);
   for (const r of records) {
     lines.push(compactLine(r));
   }
@@ -190,7 +190,7 @@ export function formatPrimeOutputCompact(
   lines.push("");
 
   if (domainSections.length === 0) {
-    lines.push("No expertise recorded yet. Use `mulch add <domain>` to create a domain, then `mulch record` to add entries.");
+    lines.push("No expertise recorded yet. Use `mulch add <domain>` to create a domain, then `mulch record` to add records.");
   } else {
     lines.push(domainSections.join("\n\n"));
   }
@@ -208,7 +208,7 @@ export function formatDomainExpertise(
   const updatedStr = lastUpdated ? `, updated ${formatTimeAgo(lastUpdated)}` : "";
   const lines: string[] = [];
 
-  lines.push(`## ${domain} (${records.length} entries${updatedStr})`);
+  lines.push(`## ${domain} (${records.length} records${updatedStr})`);
   lines.push("");
 
   const conventions = records.filter(
@@ -262,7 +262,7 @@ export function formatPrimeOutput(
   lines.push("");
 
   if (domainSections.length === 0) {
-    lines.push("No expertise recorded yet. Use `mulch add <domain>` to create a domain, then `mulch record` to add entries.");
+    lines.push("No expertise recorded yet. Use `mulch add <domain>` to create a domain, then `mulch record` to add records.");
     lines.push("");
   } else {
     lines.push(domainSections.join("\n\n"));
@@ -394,7 +394,7 @@ export function formatDomainExpertisePlain(
   const updatedStr = lastUpdated ? ` (updated ${formatTimeAgo(lastUpdated)})` : "";
   const lines: string[] = [];
 
-  lines.push(`[${domain}] ${records.length} entries${updatedStr}`);
+  lines.push(`[${domain}] ${records.length} records${updatedStr}`);
   lines.push("");
 
   const conventions = records.filter(
@@ -532,7 +532,7 @@ export function formatStatusOutput(
     } else if (count >= governance.max_entries) {
       status = " — approaching limit";
     }
-    lines.push(`  ${domain}: ${count} entries (updated ${updatedStr})${status}`);
+    lines.push(`  ${domain}: ${count} records (updated ${updatedStr})${status}`);
   }
 
   return lines.join("\n");

@@ -299,11 +299,13 @@ At the start of every session, run the following command to load project experti
 mulch prime
 \`\`\`
 
-When you learn something new about this project (conventions, patterns, failures, decisions),
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+
+When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
 record it with:
 
 \`\`\`
-mulch record <domain> --type <convention|pattern|failure|decision> [options]
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
 \`\`\`
 
 Run \`mulch --help\` for full usage.
@@ -362,11 +364,16 @@ const CODEX_SECTION = `${CODEX_SECTION_MARKER_START}
 
 At the start of every session, run \`mulch prime\` to load project expertise.
 
-When you learn something new about this project, record it with:
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+
+When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
+record it with:
 
 \`\`\`
-mulch record <domain> --type <convention|pattern|failure|decision> [options]
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
 \`\`\`
+
+Run \`mulch --help\` for full usage.
 ${CODEX_SECTION_MARKER_END}`;
 
 function hasMulchSection(content: string): boolean {
@@ -449,11 +456,16 @@ function createMarkdownRecipe(config: MarkdownRecipeConfig): ProviderRecipe {
 
 At the start of every session, run \`mulch prime\` to load project expertise.
 
-When you learn something new about this project, record it with:
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+
+When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
+record it with:
 
 \`\`\`
-mulch record <domain> --type <convention|pattern|failure|decision> [options]
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
 \`\`\`
+
+Run \`mulch --help\` for full usage.
 ${MARKER_END}`;
 
   return {

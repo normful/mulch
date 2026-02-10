@@ -33,10 +33,10 @@ function parseDuration(input: string): number {
 export function registerReadyCommand(program: Command): void {
   program
     .command("ready")
-    .description("Show recently added or updated expertise entries")
-    .option("--limit <n>", "maximum number of entries to show", "10")
+    .description("Show recently added or updated expertise records")
+    .option("--limit <n>", "maximum number of records to show", "10")
     .option("--domain <domain>", "limit to a specific domain")
-    .option("--since <duration>", "show entries from the last duration (e.g. 24h, 7d, 2w)")
+    .option("--since <duration>", "show records from the last duration (e.g. 24h, 7d, 2w)")
     .action(async (options: { limit: string; domain?: string; since?: string }) => {
       const jsonMode = program.opts().json === true;
 
@@ -130,13 +130,13 @@ export function registerReadyCommand(program: Command): void {
           });
         } else {
           if (entries.length === 0) {
-            console.log("No recent expertise entries found.");
+            console.log("No recent expertise records found.");
             return;
           }
 
           const header = options.since
             ? `Recent Expertise (last ${options.since})`
-            : `Recent Expertise (last ${entries.length} entries)`;
+            : `Recent Expertise (last ${entries.length} records)`;
           console.log(header);
           console.log("");
 

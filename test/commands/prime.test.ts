@@ -780,7 +780,7 @@ describe("prime command", () => {
       const lastUpdated = await getFileModTime(filePath);
       const section = formatDomainExpertiseCompact("database", records, lastUpdated);
 
-      expect(section).toContain("## database (6 entries");
+      expect(section).toContain("## database (6 records");
       expect(section).toContain("- [convention] Use WAL mode for SQLite");
       expect(section).toContain("- [pattern] fts5-external-content: External content FTS5 with triggers (src/db/fts.ts)");
       expect(section).toContain("- [failure] FTS5 queries crash without escaping → Use escapeFts5Term()");
@@ -856,8 +856,8 @@ describe("prime command", () => {
       ];
       const output = formatPrimeOutputCompact(sections);
 
-      expect(output).toContain("## db (1 entries");
-      expect(output).toContain("## api (1 entries");
+      expect(output).toContain("## db (1 records");
+      expect(output).toContain("## api (1 records");
       expect(output).toContain("- [convention] Use WAL mode");
       expect(output).toContain("- [decision] REST over GraphQL: Simpler tooling");
     });

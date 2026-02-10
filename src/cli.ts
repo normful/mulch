@@ -25,7 +25,7 @@ const program = new Command();
 program
   .name("mulch")
   .description("Let your agents grow 🌱")
-  .version("0.1.0")
+  .version("0.2.1")
   .option("--json", "output as structured JSON");
 
 registerInitCommand(program);

@@ -187,13 +187,13 @@ async function checkGovernance(config: MulchConfig, cwd?: string): Promise<Docto
     const count = records.length;
 
     if (count >= config.governance.hard_limit) {
-      details.push(`${domain}: ${count} entries (over hard limit of ${config.governance.hard_limit})`);
+      details.push(`${domain}: ${count} records (over hard limit of ${config.governance.hard_limit})`);
       worstStatus = "fail";
     } else if (count >= config.governance.warn_entries) {
-      details.push(`${domain}: ${count} entries (over warn threshold of ${config.governance.warn_entries})`);
+      details.push(`${domain}: ${count} records (over warn threshold of ${config.governance.warn_entries})`);
       if (worstStatus !== "fail") worstStatus = "warn";
     } else if (count >= config.governance.max_entries) {
-      details.push(`${domain}: ${count} entries (approaching limit of ${config.governance.max_entries})`);
+      details.push(`${domain}: ${count} records (approaching limit of ${config.governance.max_entries})`);
       if (worstStatus !== "fail") worstStatus = "warn";
     }
   }

@@ -116,7 +116,7 @@ describe("onboard command", () => {
       await runOnboard({ stdout: true, provider: "unknown-provider", cwd: tmpDir });
 
       const output = (stdoutSpy.mock.calls[0] as string[])[0];
-      expect(output).toContain("Before starting work");
+      expect(output).toContain("At the start of every session");
       expect(output).toContain("mulch prime");
     } finally {
       stdoutSpy.mockRestore();

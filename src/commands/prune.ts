@@ -98,7 +98,7 @@ export function registerPruneCommand(program: Command): void {
       }
 
       if (totalPruned === 0) {
-        console.log(chalk.green("No stale entries found. All records are current."));
+        console.log(chalk.green("No stale records found. All records are current."));
         return;
       }
 
@@ -107,12 +107,12 @@ export function registerPruneCommand(program: Command): void {
 
       for (const result of results) {
         console.log(
-          `${prefix}${chalk.cyan(result.domain)}: ${label} ${chalk.red(String(result.pruned))} of ${result.before} entries (${result.after} remaining)`,
+          `${prefix}${chalk.cyan(result.domain)}: ${label} ${chalk.red(String(result.pruned))} of ${result.before} records (${result.after} remaining)`,
         );
       }
 
       console.log(
-        `\n${prefix}${chalk.bold(`Total: ${label.toLowerCase()} ${totalPruned} stale ${totalPruned === 1 ? "entry" : "entries"}.`)}`,
+        `\n${prefix}${chalk.bold(`Total: ${label.toLowerCase()} ${totalPruned} stale ${totalPruned === 1 ? "record" : "records"}.`)}`,
       );
     });
 }

@@ -63,7 +63,7 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 |---------|-------------|
 | `mulch init` | Initialize `.mulch/` in the current project |
 | `mulch add <domain>` | Add a new expertise domain |
-| `mulch record <domain> --type <type>` | Record an expertise entry (`--tags`, `--force`, `--relates-to`, `--supersedes`) |
+| `mulch record <domain> --type <type>` | Record an expertise record (`--tags`, `--force`, `--relates-to`, `--supersedes`) |
 | `mulch edit <domain> <id>` | Edit an existing record by ID or 1-based index |
 | `mulch delete <domain> <id>` | Delete a record by ID or 1-based index |
 | `mulch query [domain]` | Query expertise (use `--all` for all domains) |
@@ -76,7 +76,7 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 | `mulch setup [provider]` | Install provider-specific hooks (claude, cursor, codex, gemini, windsurf, aider) |
 | `mulch onboard` | Generate AGENTS.md/CLAUDE.md snippet |
 | `mulch prune` | Remove stale tactical/observational entries |
-| `mulch ready` | Show recently added or updated entries (`--since`, `--domain`, `--limit`) |
+| `mulch ready` | Show recently added or updated records (`--since`, `--domain`, `--limit`) |
 | `mulch sync` | Validate, stage, and commit `.mulch/` changes |
 | `mulch learn` | Show changed files and suggest domains for recording learnings |
 

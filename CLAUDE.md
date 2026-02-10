@@ -66,23 +66,27 @@ Run `bd prime` for workflow context.
 
 This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
 
-**Before starting work**, run:
+**At the start of every session**, run:
 ```bash
 mulch prime
 ```
 
-**After completing work**, record learnings:
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+
+When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
+record it with:
 ```bash
-mulch record <domain> --type <convention|pattern|failure|decision> --description "..."
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
 ```
 
-Run `mulch status` to see available domains and expertise health.
+Run `mulch status` to check domain health and entry counts.
+Run `mulch --help` for full usage.
 
 ### Session Completion Checklist
 
 1. Record learnings:
    ```bash
-   mulch record <domain> --type <convention|pattern|failure|decision> --description "..."
+   mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
    ```
 2. Validate records:
    ```bash

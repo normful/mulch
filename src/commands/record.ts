@@ -23,7 +23,7 @@ export function registerRecordCommand(program: Command): void {
     .command("record")
     .argument("<domain>", "expertise domain")
     .argument("[content]", "record content")
-    .description("Record an expertise entry")
+    .description("Record an expertise record")
     .addOption(
       new Option("--type <type>", "record type")
         .choices(["convention", "pattern", "failure", "decision", "reference", "guide"])
