@@ -34,11 +34,15 @@ describe("setup command", () => {
       expect(existsSync(settingsPath)).toBe(true);
 
       const settings = JSON.parse(await readFile(settingsPath, "utf-8"));
+      const expectedGroup = {
+        matcher: "",
+        hooks: [{ type: "command", command: CLAUDE_HOOK_COMMAND }],
+      };
       expect(settings.hooks.SessionStart).toEqual(
-        expect.arrayContaining([{ command: CLAUDE_HOOK_COMMAND }]),
+        expect.arrayContaining([expectedGroup]),
       );
       expect(settings.hooks.PreCompact).toEqual(
-        expect.arrayContaining([{ command: CLAUDE_HOOK_COMMAND }]),
+        expect.arrayContaining([expectedGroup]),
       );
     });
 

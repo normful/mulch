@@ -42,11 +42,19 @@ interface ProviderRecipe {
 
 // ── Claude ──────────────────────────────────────────────────
 
+interface ClaudeHookEntry {
+  type: string;
+  command: string;
+}
+
+interface ClaudeHookGroup {
+  matcher: string;
+  hooks: ClaudeHookEntry[];
+}
+
 interface ClaudeSettings {
   hooks?: {
-    [event: string]: {
-      command: string;
-    }[];
+    [event: string]: ClaudeHookGroup[];
   };
   [key: string]: unknown;
 }
@@ -57,8 +65,23 @@ function claudeSettingsPath(cwd: string): string {
   return join(cwd, ".claude", "settings.json");
 }
 
-function hasMulchHook(hooks: { command: string }[]): boolean {
-  return hooks.some((h) => h.command === CLAUDE_HOOK_COMMAND);
+function hasMulchHook(groups: ClaudeHookGroup[]): boolean {
+  return groups.some((g) =>
+    g.hooks.some((h) => h.command === CLAUDE_HOOK_COMMAND),
+  );
+}
+
+function removeMulchHookGroups(groups: ClaudeHookGroup[]): ClaudeHookGroup[] {
+  return groups.filter(
+    (g) => !g.hooks.some((h) => h.command === CLAUDE_HOOK_COMMAND),
+  );
+}
+
+function createMulchHookGroup(): ClaudeHookGroup {
+  return {
+    matcher: "",
+    hooks: [{ type: "command", command: CLAUDE_HOOK_COMMAND }],
+  };
 }
 
 const claudeRecipe: ProviderRecipe = {
@@ -83,7 +106,7 @@ const claudeRecipe: ProviderRecipe = {
         settings.hooks[event] = [];
       }
       if (!hasMulchHook(settings.hooks[event])) {
-        settings.hooks[event].push({ command: CLAUDE_HOOK_COMMAND });
+        settings.hooks[event].push(createMulchHookGroup());
         alreadyInstalled = false;
       }
     }
@@ -141,9 +164,7 @@ const claudeRecipe: ProviderRecipe = {
     let removed = false;
     for (const event of Object.keys(settings.hooks)) {
       const before = settings.hooks[event].length;
-      settings.hooks[event] = settings.hooks[event].filter(
-        (h) => h.command !== CLAUDE_HOOK_COMMAND,
-      );
+      settings.hooks[event] = removeMulchHookGroups(settings.hooks[event]);
       if (settings.hooks[event].length < before) {
         removed = true;
       }

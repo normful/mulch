@@ -1,0 +1,5 @@
+{"type":"convention","content":"Commander.js for CLI argument parsing with explicit Option types","classification":"foundational","recorded_at":"2026-02-10T00:14:06.402Z"}
+{"type":"pattern","name":"command-registration","description":"Each command lives in src/commands/<name>.ts, exports registerXCommand(program), registered in src/cli.ts","classification":"foundational","recorded_at":"2026-02-10T00:14:08.492Z","files":["src/cli.ts","src/commands/record.ts"]}
+{"type":"convention","content":"Use process.exitCode = 1 instead of process.exit(1) for testability","classification":"foundational","recorded_at":"2026-02-10T00:14:09.704Z"}
+{"type":"convention","content":"Use chalk for all colored terminal output","classification":"foundational","recorded_at":"2026-02-10T00:14:10.717Z"}
+{"type":"failure","description":"Claude Code hooks format uses matcher as a regex string, not an object. The format is {matcher: '', hooks: [{type: 'command', command: '...'}]}","resolution":"Set matcher to empty string '' to match all events, or use a regex like 'startup' to filter specific triggers","classification":"foundational","recorded_at":"2026-02-10T00:16:52.296Z"}
