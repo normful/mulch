@@ -12,6 +12,7 @@ import { registerOnboardCommand } from "./commands/onboard.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerValidateCommand } from "./commands/validate.js";
 import { registerPruneCommand } from "./commands/prune.js";
+import { registerSearchCommand } from "./commands/search.js";
 
 const program = new Command();
 
@@ -31,5 +32,6 @@ registerOnboardCommand(program);
 registerStatusCommand(program);
 registerValidateCommand(program);
 registerPruneCommand(program);
+registerSearchCommand(program);
 
 program.parse();

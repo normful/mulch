@@ -1,0 +1,167 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  initMulchDir,
+  writeConfig,
+  getExpertisePath,
+} from "../../src/utils/config.js";
+import {
+  appendRecord,
+  createExpertiseFile,
+  searchRecords,
+  readExpertiseFile,
+} from "../../src/utils/expertise.js";
+import { DEFAULT_CONFIG } from "../../src/schemas/config.js";
+import type { ExpertiseRecord } from "../../src/schemas/record.js";
+
+describe("search command", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "mulch-search-test-"));
+    await initMulchDir(tmpDir);
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["database", "api"] },
+      tmpDir,
+    );
+    const dbPath = getExpertisePath("database", tmpDir);
+    const apiPath = getExpertisePath("api", tmpDir);
+    await createExpertiseFile(dbPath);
+    await createExpertiseFile(apiPath);
+
+    await appendRecord(dbPath, {
+      type: "convention",
+      content: "Always use WAL mode for SQLite",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+    await appendRecord(dbPath, {
+      type: "failure",
+      description: "FTS5 queries crash without escaping",
+      resolution: "Use escapeFts5Term() for all FTS5 queries",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    });
+    await appendRecord(dbPath, {
+      type: "pattern",
+      name: "migration-runner",
+      description: "Filesystem-driven migration system",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+    await appendRecord(apiPath, {
+      type: "decision",
+      title: "Use REST over GraphQL",
+      rationale: "Simpler tooling, team familiarity",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  describe("searchRecords utility", () => {
+    it("matches convention content (case-insensitive)", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const matches = searchRecords(records, "wal");
+      expect(matches).toHaveLength(1);
+      expect((matches[0] as { content: string }).content).toContain("WAL");
+    });
+
+    it("matches failure description", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const matches = searchRecords(records, "FTS5");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].type).toBe("failure");
+    });
+
+    it("matches failure resolution field", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const matches = searchRecords(records, "escapeFts5Term");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].type).toBe("failure");
+    });
+
+    it("matches pattern name", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const matches = searchRecords(records, "migration");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].type).toBe("pattern");
+    });
+
+    it("matches decision title", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("api", tmpDir),
+      );
+      const matches = searchRecords(records, "REST");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].type).toBe("decision");
+    });
+
+    it("matches decision rationale", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("api", tmpDir),
+      );
+      const matches = searchRecords(records, "familiarity");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].type).toBe("decision");
+    });
+
+    it("returns empty for no match", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const matches = searchRecords(records, "nonexistent");
+      expect(matches).toHaveLength(0);
+    });
+
+    it("matches across multiple records", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      // "FTS5" appears in both description and resolution of the failure record
+      // but that's one record; let's search for something in the type field
+      const matches = searchRecords(records, "foundational");
+      expect(matches).toHaveLength(2); // convention + pattern
+    });
+
+    it("is case-insensitive", async () => {
+      const records = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const upper = searchRecords(records, "WAL");
+      const lower = searchRecords(records, "wal");
+      const mixed = searchRecords(records, "Wal");
+      expect(upper).toHaveLength(1);
+      expect(lower).toHaveLength(1);
+      expect(mixed).toHaveLength(1);
+    });
+  });
+
+  describe("cross-domain search", () => {
+    it("finds records across multiple domains", async () => {
+      const dbRecords = await readExpertiseFile(
+        getExpertisePath("database", tmpDir),
+      );
+      const apiRecords = await readExpertiseFile(
+        getExpertisePath("api", tmpDir),
+      );
+      const allRecords = [...dbRecords, ...apiRecords];
+      // "foundational" appears in classification across both domains
+      const matches = searchRecords(allRecords, "foundational");
+      expect(matches).toHaveLength(3); // WAL conv + migration pattern + REST decision
+    });
+  });
+});

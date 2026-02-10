@@ -3,7 +3,12 @@ import _Ajv from "ajv";
 const Ajv = _Ajv.default ?? _Ajv;
 import chalk from "chalk";
 import { readConfig, getExpertisePath } from "../utils/config.js";
-import { appendRecord } from "../utils/expertise.js";
+import {
+  appendRecord,
+  readExpertiseFile,
+  writeExpertiseFile,
+  findDuplicate,
+} from "../utils/expertise.js";
 import { recordSchema } from "../schemas/record-schema.js";
 import type {
   ExpertiseRecord,
@@ -37,6 +42,7 @@ export function registerRecordCommand(program: Command): void {
     .option("--evidence-commit <commit>", "evidence: commit hash")
     .option("--evidence-issue <issue>", "evidence: issue reference")
     .option("--evidence-file <file>", "evidence: file path")
+    .option("--force", "force recording even if duplicate exists")
     .action(
       async (
         domain: string,
@@ -179,11 +185,36 @@ export function registerRecordCommand(program: Command): void {
         }
 
         const filePath = getExpertisePath(domain);
-        await appendRecord(filePath, record);
+        const existing = await readExpertiseFile(filePath);
+        const dup = findDuplicate(existing, record);
 
-        console.log(
-          chalk.green(`\u2714 Recorded ${recordType} in ${domain}`),
-        );
+        if (dup && !options.force) {
+          const isNamed =
+            record.type === "pattern" || record.type === "decision";
+
+          if (isNamed) {
+            // Upsert: replace in place
+            existing[dup.index] = record;
+            await writeExpertiseFile(filePath, existing);
+            console.log(
+              chalk.green(
+                `\u2714 Updated existing ${recordType} in ${domain} (record #${dup.index + 1})`,
+              ),
+            );
+          } else {
+            // Exact match: skip
+            console.log(
+              chalk.yellow(
+                `Duplicate ${recordType} already exists in ${domain} (record #${dup.index + 1}). Use --force to add anyway.`,
+              ),
+            );
+          }
+        } else {
+          await appendRecord(filePath, record);
+          console.log(
+            chalk.green(`\u2714 Recorded ${recordType} in ${domain}`),
+          );
+        }
       },
     );
 }

@@ -54,6 +54,7 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 | `mulch record <domain> --type <type>` | Record an expertise entry |
 | `mulch query [domain]` | Query expertise (use `--all` for all domains) |
 | `mulch prime [domain]` | Output AI-optimized expertise context (optionally scoped) |
+| `mulch search <query>` | Search records across domains (`--domain`, `--type` filters) |
 | `mulch status` | Show expertise freshness and counts |
 | `mulch validate` | Schema validation across all files |
 | `mulch setup <provider>` | Install provider-specific hooks |

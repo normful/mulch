@@ -58,3 +58,64 @@ export function filterByType(
 ): ExpertiseRecord[] {
   return records.filter((r) => r.type === type);
 }
+
+export function findDuplicate(
+  existing: ExpertiseRecord[],
+  newRecord: ExpertiseRecord,
+): { index: number; record: ExpertiseRecord } | null {
+  for (let i = 0; i < existing.length; i++) {
+    const record = existing[i];
+    if (record.type !== newRecord.type) continue;
+
+    switch (record.type) {
+      case "pattern":
+        if (
+          newRecord.type === "pattern" &&
+          record.name === newRecord.name
+        ) {
+          return { index: i, record };
+        }
+        break;
+      case "decision":
+        if (
+          newRecord.type === "decision" &&
+          record.title === newRecord.title
+        ) {
+          return { index: i, record };
+        }
+        break;
+      case "convention":
+        if (
+          newRecord.type === "convention" &&
+          record.content === newRecord.content
+        ) {
+          return { index: i, record };
+        }
+        break;
+      case "failure":
+        if (
+          newRecord.type === "failure" &&
+          record.description === newRecord.description
+        ) {
+          return { index: i, record };
+        }
+        break;
+    }
+  }
+  return null;
+}
+
+export function searchRecords(
+  records: ExpertiseRecord[],
+  query: string,
+): ExpertiseRecord[] {
+  const lowerQuery = query.toLowerCase();
+  return records.filter((record) => {
+    for (const value of Object.values(record)) {
+      if (typeof value === "string" && value.toLowerCase().includes(lowerQuery)) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
