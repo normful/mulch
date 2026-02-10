@@ -105,24 +105,34 @@ function formatGuides(records: GuideRecord[], full = false): string {
   return lines.join("\n");
 }
 
+function truncate(text: string, maxLen = 100): string {
+  if (text.length <= maxLen) return text;
+  // Try to cut at first sentence boundary within limit
+  const sentenceEnd = text.search(/[.!?]\s/);
+  if (sentenceEnd > 0 && sentenceEnd < maxLen) {
+    return text.slice(0, sentenceEnd + 1);
+  }
+  return text.slice(0, maxLen) + "...";
+}
+
 function compactLine(r: ExpertiseRecord): string {
   switch (r.type) {
     case "convention":
-      return `- [convention] ${r.content}`;
+      return `- [convention] ${truncate(r.content)}`;
     case "pattern": {
       const files = r.files && r.files.length > 0 ? ` (${r.files.join(", ")})` : "";
-      return `- [pattern] ${r.name}: ${r.description}${files}`;
+      return `- [pattern] ${r.name}: ${truncate(r.description)}${files}`;
     }
     case "failure":
-      return `- [failure] ${r.description} → ${r.resolution}`;
+      return `- [failure] ${truncate(r.description)} → ${truncate(r.resolution)}`;
     case "decision":
-      return `- [decision] ${r.title}: ${r.rationale}`;
+      return `- [decision] ${r.title}: ${truncate(r.rationale)}`;
     case "reference": {
-      const refFiles = r.files && r.files.length > 0 ? `: ${r.files.join(", ")}` : `: ${r.description}`;
+      const refFiles = r.files && r.files.length > 0 ? `: ${r.files.join(", ")}` : `: ${truncate(r.description)}`;
       return `- [reference] ${r.name}${refFiles}`;
     }
     case "guide":
-      return `- [guide] ${r.name}: ${r.description}`;
+      return `- [guide] ${r.name}: ${truncate(r.description)}`;
   }
 }
 
