@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -18,6 +18,11 @@ import { DEFAULT_CONFIG } from "../../src/schemas/config.js";
 import {
   formatDomainExpertise,
   formatPrimeOutput,
+  formatDomainExpertiseXml,
+  formatPrimeOutputXml,
+  formatDomainExpertisePlain,
+  formatPrimeOutputPlain,
+  formatMcpOutput,
 } from "../../src/utils/format.js";
 
 describe("prime command", () => {
@@ -110,6 +115,180 @@ describe("prime command", () => {
     const output = formatPrimeOutput([]);
     expect(output).toContain("## Recording New Learnings");
     expect(output).toContain("mulch record <domain>");
+  });
+
+  it("--full includes classification and evidence in output", async () => {
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing"] },
+      tmpDir,
+    );
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await appendRecord(filePath, {
+      type: "convention",
+      content: "Always lint before commit",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+      evidence: { commit: "abc123", file: "src/index.ts" },
+    });
+
+    const records = await readExpertiseFile(filePath);
+    const lastUpdated = await getFileModTime(filePath);
+    const section = formatDomainExpertise("testing", records, lastUpdated, {
+      full: true,
+    });
+
+    expect(section).toContain("(foundational)");
+    expect(section).toContain("commit: abc123");
+    expect(section).toContain("file: src/index.ts");
+  });
+
+  it("--full=false omits classification and evidence", async () => {
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing"] },
+      tmpDir,
+    );
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await appendRecord(filePath, {
+      type: "convention",
+      content: "Always lint before commit",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+      evidence: { commit: "abc123" },
+    });
+
+    const records = await readExpertiseFile(filePath);
+    const lastUpdated = await getFileModTime(filePath);
+    const section = formatDomainExpertise("testing", records, lastUpdated);
+
+    expect(section).not.toContain("(foundational)");
+    expect(section).not.toContain("abc123");
+  });
+
+  it("--mcp outputs valid JSON with domain records", async () => {
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing"] },
+      tmpDir,
+    );
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await appendRecord(filePath, {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+
+    const records = await readExpertiseFile(filePath);
+    const output = formatMcpOutput([
+      { domain: "testing", entry_count: records.length, records },
+    ]);
+
+    const parsed = JSON.parse(output);
+    expect(parsed.type).toBe("expertise");
+    expect(parsed.domains).toHaveLength(1);
+    expect(parsed.domains[0].domain).toBe("testing");
+    expect(parsed.domains[0].entry_count).toBe(1);
+    expect(parsed.domains[0].records[0].content).toBe("Use vitest");
+  });
+
+  it("--format xml outputs XML with domain tags", async () => {
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing"] },
+      tmpDir,
+    );
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await appendRecord(filePath, {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+    await appendRecord(filePath, {
+      type: "failure",
+      description: "OOM on large data",
+      resolution: "Use streaming",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    });
+
+    const records = await readExpertiseFile(filePath);
+    const lastUpdated = await getFileModTime(filePath);
+    const section = formatDomainExpertiseXml("testing", records, lastUpdated);
+    const output = formatPrimeOutputXml([section]);
+
+    expect(output).toContain("<expertise>");
+    expect(output).toContain("</expertise>");
+    expect(output).toContain('<domain name="testing"');
+    expect(output).toContain('<convention classification="foundational">');
+    expect(output).toContain("Use vitest");
+    expect(output).toContain("<resolution>Use streaming</resolution>");
+  });
+
+  it("--format xml escapes special characters", async () => {
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing"] },
+      tmpDir,
+    );
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await appendRecord(filePath, {
+      type: "convention",
+      content: "Use <T> & generics",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+
+    const records = await readExpertiseFile(filePath);
+    const section = formatDomainExpertiseXml("testing", records, null);
+
+    expect(section).toContain("Use &lt;T&gt; &amp; generics");
+    expect(section).not.toContain("Use <T>");
+  });
+
+  it("--format plain outputs plain text", async () => {
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing"] },
+      tmpDir,
+    );
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await appendRecord(filePath, {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+    await appendRecord(filePath, {
+      type: "decision",
+      title: "Use ESM",
+      rationale: "Better tree-shaking",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    });
+
+    const records = await readExpertiseFile(filePath);
+    const lastUpdated = await getFileModTime(filePath);
+    const section = formatDomainExpertisePlain("testing", records, lastUpdated);
+    const output = formatPrimeOutputPlain([section]);
+
+    expect(output).toContain("Project Expertise (via Mulch)");
+    expect(output).toContain("[testing]");
+    expect(output).toContain("Conventions:");
+    expect(output).toContain("  - Use vitest");
+    expect(output).toContain("Decisions:");
+    expect(output).toContain("  - Use ESM: Better tree-shaking");
+    // Should not contain markdown
+    expect(output).not.toContain("##");
+    expect(output).not.toContain("**");
   });
 
   it("formats domain with all record types", async () => {

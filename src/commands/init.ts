@@ -9,15 +9,16 @@ export function registerInitCommand(program: Command): void {
     .description("Initialize .mulch/ in the current project")
     .action(async () => {
       const mulchDir = getMulchDir();
-
-      if (existsSync(mulchDir)) {
-        console.log(
-          chalk.yellow(".mulch/ already exists in this directory."),
-        );
-        return;
-      }
+      const alreadyExists = existsSync(mulchDir);
 
       await initMulchDir();
-      console.log(chalk.green(`Initialized .mulch/ in ${process.cwd()}`));
+
+      if (alreadyExists) {
+        console.log(
+          chalk.green("Updated .mulch/ — filled in any missing artifacts."),
+        );
+      } else {
+        console.log(chalk.green(`Initialized .mulch/ in ${process.cwd()}`));
+      }
     });
 }

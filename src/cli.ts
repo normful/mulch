@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { registerInitCommand } from "./commands/init.js";
 import { registerAddCommand } from "./commands/add.js";
 import { registerRecordCommand } from "./commands/record.js";
+import { registerEditCommand } from "./commands/edit.js";
 import { registerQueryCommand } from "./commands/query.js";
 import { registerSetupCommand } from "./commands/setup.js";
 import { registerPrimeCommand } from "./commands/prime.js";
@@ -22,6 +23,7 @@ program
 registerInitCommand(program);
 registerAddCommand(program);
 registerRecordCommand(program);
+registerEditCommand(program);
 registerQueryCommand(program);
 registerSetupCommand(program);
 registerPrimeCommand(program);

@@ -9,6 +9,7 @@ import {
   getConfigPath,
   getExpertiseDir,
   readConfig,
+  writeConfig,
   GITATTRIBUTES_LINE,
   MULCH_README,
 } from "../../src/utils/config.js";
@@ -52,6 +53,24 @@ describe("init command", () => {
     // Config should still be valid after second init
     const config = await readConfig(tmpDir);
     expect(config.version).toBe("1");
+  });
+
+  it("re-running init preserves customized config", async () => {
+    await initMulchDir(tmpDir);
+
+    // Customize the config
+    const config = await readConfig(tmpDir);
+    config.domains = ["custom-domain"];
+    config.governance.max_entries = 50;
+    await writeConfig(config, tmpDir);
+
+    // Re-run init
+    await initMulchDir(tmpDir);
+
+    // Config should retain customizations
+    const after = await readConfig(tmpDir);
+    expect(after.domains).toEqual(["custom-domain"]);
+    expect(after.governance.max_entries).toBe(50);
   });
 
   it("checks that .mulch/ already exists", () => {

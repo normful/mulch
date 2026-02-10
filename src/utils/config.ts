@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import type { MulchConfig } from "../schemas/config.js";
@@ -20,6 +21,7 @@ This directory is managed by [mulch](https://github.com/jayminwest/mulch) — a 
 - \`mulch init\`      — Initialize a .mulch directory
 - \`mulch add\`       — Add a new domain
 - \`mulch record\`    — Record an expertise entry
+- \`mulch edit\`      — Edit an existing record
 - \`mulch query\`     — Query expertise entries
 - \`mulch prime\`     — Output a priming prompt for an agent
 - \`mulch status\`    — Show domain statistics
@@ -75,7 +77,12 @@ export async function initMulchDir(
   const expertiseDir = getExpertiseDir(cwd);
   await mkdir(mulchDir, { recursive: true });
   await mkdir(expertiseDir, { recursive: true });
-  await writeConfig({ ...DEFAULT_CONFIG }, cwd);
+
+  // Only write default config if none exists — preserve user customizations
+  const configPath = getConfigPath(cwd);
+  if (!existsSync(configPath)) {
+    await writeConfig({ ...DEFAULT_CONFIG }, cwd);
+  }
 
   // Create or append .gitattributes with merge=union for JSONL files
   const gitattributesPath = join(cwd, ".gitattributes");
@@ -94,7 +101,9 @@ export async function initMulchDir(
     );
   }
 
-  // Create .mulch/README.md
+  // Create .mulch/README.md if missing
   const readmePath = join(mulchDir, "README.md");
-  await writeFile(readmePath, MULCH_README, "utf-8");
+  if (!existsSync(readmePath)) {
+    await writeFile(readmePath, MULCH_README, "utf-8");
+  }
 }

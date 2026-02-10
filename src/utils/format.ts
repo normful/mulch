@@ -19,16 +19,32 @@ function formatTimeAgo(date: Date): string {
   return `${diffDays}d ago`;
 }
 
-function formatConventions(records: ConventionRecord[]): string {
+function formatEvidence(evidence: ConventionRecord["evidence"]): string {
+  if (!evidence) return "";
+  const parts: string[] = [];
+  if (evidence.commit) parts.push(`commit: ${evidence.commit}`);
+  if (evidence.date) parts.push(`date: ${evidence.date}`);
+  if (evidence.issue) parts.push(`issue: ${evidence.issue}`);
+  if (evidence.file) parts.push(`file: ${evidence.file}`);
+  return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
+}
+
+function formatRecordMeta(r: ExpertiseRecord, full: boolean): string {
+  if (!full) return "";
+  const parts = [`(${r.classification})${formatEvidence(r.evidence)}`];
+  return " " + parts.join(" ");
+}
+
+function formatConventions(records: ConventionRecord[], full = false): string {
   if (records.length === 0) return "";
   const lines = ["### Conventions"];
   for (const r of records) {
-    lines.push(`- ${r.content}`);
+    lines.push(`- ${r.content}${formatRecordMeta(r, full)}`);
   }
   return lines.join("\n");
 }
 
-function formatPatterns(records: PatternRecord[]): string {
+function formatPatterns(records: PatternRecord[], full = false): string {
   if (records.length === 0) return "";
   const lines = ["### Patterns"];
   for (const r of records) {
@@ -36,26 +52,27 @@ function formatPatterns(records: PatternRecord[]): string {
     if (r.files && r.files.length > 0) {
       line += ` (${r.files.join(", ")})`;
     }
+    line += formatRecordMeta(r, full);
     lines.push(line);
   }
   return lines.join("\n");
 }
 
-function formatFailures(records: FailureRecord[]): string {
+function formatFailures(records: FailureRecord[], full = false): string {
   if (records.length === 0) return "";
   const lines = ["### Known Failures"];
   for (const r of records) {
-    lines.push(`- ${r.description}`);
+    lines.push(`- ${r.description}${formatRecordMeta(r, full)}`);
     lines.push(`  → ${r.resolution}`);
   }
   return lines.join("\n");
 }
 
-function formatDecisions(records: DecisionRecord[]): string {
+function formatDecisions(records: DecisionRecord[], full = false): string {
   if (records.length === 0) return "";
   const lines = ["### Decisions"];
   for (const r of records) {
-    lines.push(`- **${r.title}**: ${r.rationale}`);
+    lines.push(`- **${r.title}**: ${r.rationale}${formatRecordMeta(r, full)}`);
   }
   return lines.join("\n");
 }
@@ -64,7 +81,9 @@ export function formatDomainExpertise(
   domain: string,
   records: ExpertiseRecord[],
   lastUpdated: Date | null,
+  options: { full?: boolean } = {},
 ): string {
+  const full = options.full ?? false;
   const updatedStr = lastUpdated ? `, updated ${formatTimeAgo(lastUpdated)}` : "";
   const lines: string[] = [];
 
@@ -85,10 +104,10 @@ export function formatDomainExpertise(
   );
 
   const sections = [
-    formatConventions(conventions),
-    formatPatterns(patterns),
-    formatFailures(failures),
-    formatDecisions(decisions),
+    formatConventions(conventions, full),
+    formatPatterns(patterns, full),
+    formatFailures(failures, full),
+    formatDecisions(decisions, full),
   ].filter((s) => s.length > 0);
 
   lines.push(sections.join("\n\n"));
@@ -124,6 +143,164 @@ export function formatPrimeOutput(
   lines.push("```");
 
   return lines.join("\n");
+}
+
+export type PrimeFormat = "markdown" | "xml" | "plain";
+
+// --- XML format (optimized for Claude) ---
+
+function xmlEscape(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export function formatDomainExpertiseXml(
+  domain: string,
+  records: ExpertiseRecord[],
+  lastUpdated: Date | null,
+): string {
+  const updatedStr = lastUpdated ? ` updated="${formatTimeAgo(lastUpdated)}"` : "";
+  const lines: string[] = [];
+
+  lines.push(`<domain name="${xmlEscape(domain)}" entries="${records.length}"${updatedStr}>`);
+
+  for (const r of records) {
+    lines.push(`  <${r.type} classification="${r.classification}">`);
+    switch (r.type) {
+      case "convention":
+        lines.push(`    ${xmlEscape(r.content)}`);
+        break;
+      case "pattern":
+        lines.push(`    <name>${xmlEscape(r.name)}</name>`);
+        lines.push(`    <description>${xmlEscape(r.description)}</description>`);
+        if (r.files && r.files.length > 0) {
+          lines.push(`    <files>${r.files.map(xmlEscape).join(", ")}</files>`);
+        }
+        break;
+      case "failure":
+        lines.push(`    <description>${xmlEscape(r.description)}</description>`);
+        lines.push(`    <resolution>${xmlEscape(r.resolution)}</resolution>`);
+        break;
+      case "decision":
+        lines.push(`    <title>${xmlEscape(r.title)}</title>`);
+        lines.push(`    <rationale>${xmlEscape(r.rationale)}</rationale>`);
+        break;
+    }
+    lines.push(`  </${r.type}>`);
+  }
+
+  lines.push("</domain>");
+  return lines.join("\n");
+}
+
+export function formatPrimeOutputXml(
+  domainSections: string[],
+): string {
+  const lines: string[] = [];
+  lines.push("<expertise>");
+
+  if (domainSections.length === 0) {
+    lines.push("  <empty>No expertise recorded yet. Use mulch add and mulch record to get started.</empty>");
+  } else {
+    lines.push(domainSections.join("\n"));
+  }
+
+  lines.push("</expertise>");
+  return lines.join("\n");
+}
+
+// --- Plain text format (optimized for Codex) ---
+
+export function formatDomainExpertisePlain(
+  domain: string,
+  records: ExpertiseRecord[],
+  lastUpdated: Date | null,
+): string {
+  const updatedStr = lastUpdated ? ` (updated ${formatTimeAgo(lastUpdated)})` : "";
+  const lines: string[] = [];
+
+  lines.push(`[${domain}] ${records.length} entries${updatedStr}`);
+  lines.push("");
+
+  const conventions = records.filter(
+    (r): r is ConventionRecord => r.type === "convention",
+  );
+  const patterns = records.filter(
+    (r): r is PatternRecord => r.type === "pattern",
+  );
+  const failures = records.filter(
+    (r): r is FailureRecord => r.type === "failure",
+  );
+  const decisions = records.filter(
+    (r): r is DecisionRecord => r.type === "decision",
+  );
+
+  if (conventions.length > 0) {
+    lines.push("Conventions:");
+    for (const r of conventions) {
+      lines.push(`  - ${r.content}`);
+    }
+    lines.push("");
+  }
+  if (patterns.length > 0) {
+    lines.push("Patterns:");
+    for (const r of patterns) {
+      let line = `  - ${r.name}: ${r.description}`;
+      if (r.files && r.files.length > 0) {
+        line += ` (${r.files.join(", ")})`;
+      }
+      lines.push(line);
+    }
+    lines.push("");
+  }
+  if (failures.length > 0) {
+    lines.push("Known Failures:");
+    for (const r of failures) {
+      lines.push(`  - ${r.description}`);
+      lines.push(`    Fix: ${r.resolution}`);
+    }
+    lines.push("");
+  }
+  if (decisions.length > 0) {
+    lines.push("Decisions:");
+    for (const r of decisions) {
+      lines.push(`  - ${r.title}: ${r.rationale}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
+}
+
+export function formatPrimeOutputPlain(
+  domainSections: string[],
+): string {
+  const lines: string[] = [];
+  lines.push("Project Expertise (via Mulch)");
+  lines.push("============================");
+  lines.push("");
+
+  if (domainSections.length === 0) {
+    lines.push("No expertise recorded yet. Use `mulch add <domain>` and `mulch record` to get started.");
+  } else {
+    lines.push(domainSections.join("\n\n"));
+  }
+
+  return lines.join("\n");
+}
+
+export interface McpDomain {
+  domain: string;
+  entry_count: number;
+  records: ExpertiseRecord[];
+}
+
+export function formatMcpOutput(
+  domains: McpDomain[],
+): string {
+  return JSON.stringify({ type: "expertise", domains }, null, 2);
 }
 
 export function formatStatusOutput(
