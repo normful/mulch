@@ -63,15 +63,22 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 |---------|-------------|
 | `mulch init` | Initialize `.mulch/` in the current project |
 | `mulch add <domain>` | Add a new expertise domain |
-| `mulch record <domain> --type <type>` | Record an expertise entry |
+| `mulch record <domain> --type <type>` | Record an expertise entry (`--tags`, `--force`, `--relates-to`, `--supersedes`) |
+| `mulch edit <domain> <id>` | Edit an existing record by ID or 1-based index |
+| `mulch delete <domain> <id>` | Delete a record by ID or 1-based index |
 | `mulch query [domain]` | Query expertise (use `--all` for all domains) |
-| `mulch prime [domain]` | Output AI-optimized expertise context (optionally scoped) |
-| `mulch search <query>` | Search records across domains (`--domain`, `--type` filters) |
+| `mulch prime [domains...]` | Output AI-optimized expertise context (multi-domain, `--context`, `--format`, `--export`) |
+| `mulch search [query]` | Search records across domains (`--domain`, `--type`, `--tag` filters) |
+| `mulch compact [domain]` | Analyze compaction candidates or apply a compaction (`--analyze`, `--apply`) |
 | `mulch status` | Show expertise freshness and counts |
 | `mulch validate` | Schema validation across all files |
-| `mulch setup <provider>` | Install provider-specific hooks |
+| `mulch doctor` | Run health checks on expertise records (`--fix` to auto-fix) |
+| `mulch setup [provider]` | Install provider-specific hooks (claude, cursor, codex, gemini, windsurf, aider) |
 | `mulch onboard` | Generate AGENTS.md/CLAUDE.md snippet |
-| `mulch prune` | Remove stale tactical entries |
+| `mulch prune` | Remove stale tactical/observational entries |
+| `mulch ready` | Show recently added or updated entries (`--since`, `--domain`, `--limit`) |
+| `mulch sync` | Validate, stage, and commit `.mulch/` changes |
+| `mulch learn` | Show changed files and suggest domains for recording learnings |
 
 ## Record Types
 
@@ -84,7 +91,7 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 | `reference` | name, description | Key files, endpoints, or resources worth remembering |
 | `guide` | name, description | Step-by-step procedures for recurring tasks |
 
-All records support optional `--classification` (foundational / tactical / observational) and evidence flags (`--evidence-commit`, `--evidence-issue`, `--evidence-file`).
+All records support optional `--classification` (foundational / tactical / observational), evidence flags (`--evidence-commit`, `--evidence-issue`, `--evidence-file`), `--tags`, `--relates-to`, and `--supersedes` for linking.
 
 ## Example Output
 
