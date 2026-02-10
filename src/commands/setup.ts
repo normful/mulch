@@ -301,8 +301,8 @@ mulch prime
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
 
-When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
-record it with:
+**Before completing your task**, review your work for insights worth preserving — conventions discovered,
+patterns applied, failures encountered, or decisions made — and record them:
 
 \`\`\`
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
@@ -366,8 +366,8 @@ At the start of every session, run \`mulch prime\` to load project expertise.
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
 
-When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
-record it with:
+**Before completing your task**, review your work for insights worth preserving — conventions discovered,
+patterns applied, failures encountered, or decisions made — and record them:
 
 \`\`\`
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
@@ -458,8 +458,8 @@ At the start of every session, run \`mulch prime\` to load project expertise.
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
 
-When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
-record it with:
+**Before completing your task**, review your work for insights worth preserving — conventions discovered,
+patterns applied, failures encountered, or decisions made — and record them:
 
 \`\`\`
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]

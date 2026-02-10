@@ -38,11 +38,11 @@ mulch prime database                                  # Get context for one doma
 1. mulch init               → Creates .mulch/ with domain JSONL files
 2. Agent reads expertise     → Grounded in everything the project has learned
 3. Agent does work           → Normal task execution
-4. Agent calls mulch record  → Writes structured learnings back to .mulch/
+4. Agent records insights    → Before finishing, writes learnings back to .mulch/
 5. git push                  → Teammates' agents get smarter too
 ```
 
-The critical insight: step 4 is **agent-driven**. The agent decides what's worth recording. Mulch provides the schema and file structure so those learnings land in a consistent, queryable format.
+The critical insight: step 4 is **agent-driven**. Before completing a task, the agent reviews its work for insights worth preserving and calls `mulch record`. Mulch provides the schema and file structure so those learnings land in a consistent, queryable format.
 
 ## What's in `.mulch/`
 

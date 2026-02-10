@@ -73,8 +73,8 @@ mulch prime
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
 
-When you learn something new about this project (conventions, patterns, failures, decisions, references, guides),
-record it with:
+**Before completing your task**, review your work for insights worth preserving — conventions discovered,
+patterns applied, failures encountered, or decisions made — and record them:
 ```bash
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
 ```
@@ -82,21 +82,13 @@ mulch record <domain> --type <convention|pattern|failure|decision|reference|guid
 Run `mulch status` to check domain health and entry counts.
 Run `mulch --help` for full usage.
 
-### Session Completion Checklist
+### Before You Finish
 
-1. Record learnings:
+1. Store insights from this work session:
    ```bash
    mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
    ```
-2. Validate records:
+2. Validate and commit:
    ```bash
-   mulch validate
-   ```
-3. Commit changes:
-   ```bash
-   git add .mulch/ && git commit -m "Update expertise"
-   ```
-4. Push to share:
-   ```bash
-   git push
+   mulch validate && git add .mulch/ && git commit -m "mulch: record learnings"
    ```
