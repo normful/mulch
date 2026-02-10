@@ -113,6 +113,25 @@ export function registerEditCommand(program: Command): void {
                 record.rationale = options.rationale as string;
               }
               break;
+            case "reference":
+              if (options.name) {
+                record.name = options.name as string;
+              }
+              if (options.description) {
+                record.description = options.description as string;
+              }
+              if (typeof options.files === "string") {
+                record.files = (options.files as string).split(",");
+              }
+              break;
+            case "guide":
+              if (options.name) {
+                record.name = options.name as string;
+              }
+              if (options.description) {
+                record.description = options.description as string;
+              }
+              break;
           }
 
           // Validate the updated record

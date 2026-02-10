@@ -16,6 +16,8 @@ export function registerSearchCommand(program: Command): void {
         "pattern",
         "failure",
         "decision",
+        "reference",
+        "guide",
       ]),
     )
     .action(

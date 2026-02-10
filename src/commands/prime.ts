@@ -19,36 +19,43 @@ interface PrimeOptions {
   mcp?: boolean;
   format?: PrimeFormat;
   export?: string;
+  domain?: string[];
 }
 
 export function registerPrimeCommand(program: Command): void {
   program
     .command("prime")
     .description("Generate a priming prompt from expertise records")
-    .argument("[domain]", "optional domain to scope output to")
+    .argument("[domains...]", "optional domain(s) to scope output to")
     .option("--full", "include full record details (classification, evidence)")
     .option("--mcp", "output in MCP-compatible JSON format")
+    .option("--domain <domains...>", "domain(s) to include")
     .addOption(
       new Option("--format <format>", "output format")
         .choices(["markdown", "xml", "plain"])
         .default("markdown"),
     )
     .option("--export <path>", "export output to a file")
-    .action(async (domainArg: string | undefined, options: PrimeOptions) => {
+    .action(async (domainsArg: string[], options: PrimeOptions) => {
       try {
         const config = await readConfig();
         const format = options.format ?? "markdown";
 
-        if (domainArg && !config.domains.includes(domainArg)) {
-          console.error(
-            `Error: Domain "${domainArg}" not found in config. Available domains: ${config.domains.join(", ")}`,
-          );
-          process.exitCode = 1;
-          return;
+        const requested = [...domainsArg, ...(options.domain ?? [])];
+        const unique = [...new Set(requested)];
+
+        for (const d of unique) {
+          if (!config.domains.includes(d)) {
+            console.error(
+              `Error: Domain "${d}" not found in config. Available domains: ${config.domains.join(", ")}`,
+            );
+            process.exitCode = 1;
+            return;
+          }
         }
 
-        const targetDomains = domainArg
-          ? [domainArg]
+        const targetDomains = unique.length > 0
+          ? unique
           : config.domains;
 
         let output: string;

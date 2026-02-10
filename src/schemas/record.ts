@@ -1,4 +1,4 @@
-export type RecordType = "convention" | "pattern" | "failure" | "decision";
+export type RecordType = "convention" | "pattern" | "failure" | "decision" | "reference" | "guide";
 
 export type Classification = "foundational" | "tactical" | "observational";
 
@@ -40,8 +40,23 @@ export interface DecisionRecord extends BaseRecord {
   date?: string;
 }
 
+export interface ReferenceRecord extends BaseRecord {
+  type: "reference";
+  name: string;
+  description: string;
+  files?: string[];
+}
+
+export interface GuideRecord extends BaseRecord {
+  type: "guide";
+  name: string;
+  description: string;
+}
+
 export type ExpertiseRecord =
   | ConventionRecord
   | PatternRecord
   | FailureRecord
-  | DecisionRecord;
+  | DecisionRecord
+  | ReferenceRecord
+  | GuideRecord;

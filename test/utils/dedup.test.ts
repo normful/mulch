@@ -222,6 +222,58 @@ describe("deduplication", () => {
 
       expect(findDuplicate([], newRecord)).toBeNull();
     });
+
+    it("detects duplicate reference by name", async () => {
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "config-file",
+        description: "Old description",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const newRecord: ExpertiseRecord = {
+        type: "reference",
+        name: "config-file",
+        description: "Updated description",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      };
+
+      const dup = findDuplicate(records, newRecord);
+      expect(dup).not.toBeNull();
+      expect(dup!.index).toBe(0);
+    });
+
+    it("detects duplicate guide by name", async () => {
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "guide",
+        name: "deploy-guide",
+        description: "Old steps",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const newRecord: ExpertiseRecord = {
+        type: "guide",
+        name: "deploy-guide",
+        description: "New improved steps",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      };
+
+      const dup = findDuplicate(records, newRecord);
+      expect(dup).not.toBeNull();
+      expect(dup!.index).toBe(0);
+    });
   });
 
   describe("upsert behavior for named types", () => {

@@ -100,6 +100,22 @@ export function findDuplicate(
           return { index: i, record };
         }
         break;
+      case "reference":
+        if (
+          newRecord.type === "reference" &&
+          record.name === newRecord.name
+        ) {
+          return { index: i, record };
+        }
+        break;
+      case "guide":
+        if (
+          newRecord.type === "guide" &&
+          record.name === newRecord.name
+        ) {
+          return { index: i, record };
+        }
+        break;
     }
   }
   return null;

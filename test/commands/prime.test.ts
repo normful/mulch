@@ -479,4 +479,244 @@ describe("prime command", () => {
     expect(section).toContain("### Decisions");
     expect(section).toContain("Use PostgreSQL");
   });
+
+  describe("reference and guide record formatting", () => {
+    it("formats reference records under References heading", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "cli-entry",
+        description: "Main CLI entry point",
+        files: ["src/cli.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertise("testing", records, lastUpdated);
+
+      expect(section).toContain("### References");
+      expect(section).toContain("**cli-entry**: Main CLI entry point");
+      expect(section).toContain("(src/cli.ts)");
+    });
+
+    it("formats guide records under Guides heading", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "guide",
+        name: "add-command",
+        description: "How to add a new CLI command",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertise("testing", records, lastUpdated);
+
+      expect(section).toContain("### Guides");
+      expect(section).toContain("**add-command**: How to add a new CLI command");
+    });
+
+    it("XML format handles reference and guide records", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "config-file",
+        description: "YAML config",
+        files: ["config.yaml"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "guide",
+        name: "setup-guide",
+        description: "How to set up the project",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertiseXml("testing", records, lastUpdated);
+
+      expect(section).toContain('<reference classification="foundational">');
+      expect(section).toContain("<name>config-file</name>");
+      expect(section).toContain("<files>config.yaml</files>");
+      expect(section).toContain("</reference>");
+      expect(section).toContain('<guide classification="tactical">');
+      expect(section).toContain("<name>setup-guide</name>");
+      expect(section).toContain("</guide>");
+    });
+
+    it("plain text format handles reference and guide records", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "entry-point",
+        description: "Main entry",
+        files: ["src/index.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "guide",
+        name: "deploy-guide",
+        description: "How to deploy",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertisePlain("testing", records, lastUpdated);
+
+      expect(section).toContain("References:");
+      expect(section).toContain("  - entry-point: Main entry (src/index.ts)");
+      expect(section).toContain("Guides:");
+      expect(section).toContain("  - deploy-guide: How to deploy");
+    });
+
+    it("MCP output includes reference and guide records", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "reference",
+        name: "key-file",
+        description: "Important file",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "guide",
+        name: "howto",
+        description: "Step by step guide",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const output = formatMcpOutput([
+        { domain: "testing", entry_count: records.length, records },
+      ]);
+
+      const parsed = JSON.parse(output);
+      expect(parsed.domains[0].records).toHaveLength(2);
+      expect(parsed.domains[0].records[0].type).toBe("reference");
+      expect(parsed.domains[0].records[1].type).toBe("guide");
+    });
+
+    it("recording instructions include reference and guide examples", () => {
+      const output = formatPrimeOutput([]);
+      expect(output).toContain('--type reference');
+      expect(output).toContain('--type guide');
+    });
+  });
+
+  describe("multi-domain prime", () => {
+    it("multiple domains produce combined output", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing", "architecture", "api"] },
+        tmpDir,
+      );
+
+      const testingPath = getExpertisePath("testing", tmpDir);
+      const archPath = getExpertisePath("architecture", tmpDir);
+      const apiPath = getExpertisePath("api", tmpDir);
+      await createExpertiseFile(testingPath);
+      await createExpertiseFile(archPath);
+      await createExpertiseFile(apiPath);
+
+      await appendRecord(testingPath, {
+        type: "convention",
+        content: "Use vitest",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(archPath, {
+        type: "decision",
+        title: "Use ESM",
+        rationale: "Better tree-shaking",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(apiPath, {
+        type: "pattern",
+        name: "REST endpoints",
+        description: "Follow RESTful conventions",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      // Select only testing + api (skip architecture)
+      const targetDomains = ["testing", "api"];
+      const sections: string[] = [];
+      for (const domain of targetDomains) {
+        const filePath = getExpertisePath(domain, tmpDir);
+        const records = await readExpertiseFile(filePath);
+        const lastUpdated = await getFileModTime(filePath);
+        sections.push(formatDomainExpertise(domain, records, lastUpdated));
+      }
+
+      const output = formatPrimeOutput(sections);
+      expect(output).toContain("## testing");
+      expect(output).toContain("## api");
+      expect(output).not.toContain("## architecture");
+      expect(output).toContain("Use vitest");
+      expect(output).toContain("REST endpoints");
+      expect(output).not.toContain("Use ESM");
+    });
+
+    it("deduplicates domains from positional and --domain args", () => {
+      const positional = ["testing", "api"];
+      const flagDomains = ["api", "architecture"];
+      const merged = [...new Set([...positional, ...flagDomains])];
+
+      expect(merged).toEqual(["testing", "api", "architecture"]);
+    });
+
+    it("empty domain selection falls back to all domains", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing", "architecture"] },
+        tmpDir,
+      );
+
+      const config = await readConfig(tmpDir);
+      const requested: string[] = [];
+      const unique = [...new Set(requested)];
+      const targetDomains = unique.length > 0 ? unique : config.domains;
+
+      expect(targetDomains).toEqual(["testing", "architecture"]);
+    });
+  });
 });

@@ -4,6 +4,8 @@ import type {
   PatternRecord,
   FailureRecord,
   DecisionRecord,
+  ReferenceRecord,
+  GuideRecord,
 } from "../schemas/record.js";
 
 function formatTimeAgo(date: Date): string {
@@ -77,6 +79,29 @@ function formatDecisions(records: DecisionRecord[], full = false): string {
   return lines.join("\n");
 }
 
+function formatReferences(records: ReferenceRecord[], full = false): string {
+  if (records.length === 0) return "";
+  const lines = ["### References"];
+  for (const r of records) {
+    let line = `- **${r.name}**: ${r.description}`;
+    if (r.files && r.files.length > 0) {
+      line += ` (${r.files.join(", ")})`;
+    }
+    line += formatRecordMeta(r, full);
+    lines.push(line);
+  }
+  return lines.join("\n");
+}
+
+function formatGuides(records: GuideRecord[], full = false): string {
+  if (records.length === 0) return "";
+  const lines = ["### Guides"];
+  for (const r of records) {
+    lines.push(`- **${r.name}**: ${r.description}${formatRecordMeta(r, full)}`);
+  }
+  return lines.join("\n");
+}
+
 export function formatDomainExpertise(
   domain: string,
   records: ExpertiseRecord[],
@@ -102,12 +127,20 @@ export function formatDomainExpertise(
   const decisions = records.filter(
     (r): r is DecisionRecord => r.type === "decision",
   );
+  const references = records.filter(
+    (r): r is ReferenceRecord => r.type === "reference",
+  );
+  const guides = records.filter(
+    (r): r is GuideRecord => r.type === "guide",
+  );
 
   const sections = [
     formatConventions(conventions, full),
     formatPatterns(patterns, full),
     formatFailures(failures, full),
     formatDecisions(decisions, full),
+    formatReferences(references, full),
+    formatGuides(guides, full),
   ].filter((s) => s.length > 0);
 
   lines.push(sections.join("\n\n"));
@@ -140,6 +173,8 @@ export function formatPrimeOutput(
   lines.push('mulch record <domain> --type failure --description "..." --resolution "..."');
   lines.push('mulch record <domain> --type decision --title "..." --rationale "..."');
   lines.push('mulch record <domain> --type pattern --name "..." --description "..." --files "..."');
+  lines.push('mulch record <domain> --type reference --name "..." --description "..." --files "..."');
+  lines.push('mulch record <domain> --type guide --name "..." --description "..."');
   lines.push("```");
 
   return lines.join("\n");
@@ -186,6 +221,17 @@ export function formatDomainExpertiseXml(
       case "decision":
         lines.push(`    <title>${xmlEscape(r.title)}</title>`);
         lines.push(`    <rationale>${xmlEscape(r.rationale)}</rationale>`);
+        break;
+      case "reference":
+        lines.push(`    <name>${xmlEscape(r.name)}</name>`);
+        lines.push(`    <description>${xmlEscape(r.description)}</description>`);
+        if (r.files && r.files.length > 0) {
+          lines.push(`    <files>${r.files.map(xmlEscape).join(", ")}</files>`);
+        }
+        break;
+      case "guide":
+        lines.push(`    <name>${xmlEscape(r.name)}</name>`);
+        lines.push(`    <description>${xmlEscape(r.description)}</description>`);
         break;
     }
     lines.push(`  </${r.type}>`);
@@ -267,6 +313,32 @@ export function formatDomainExpertisePlain(
     lines.push("Decisions:");
     for (const r of decisions) {
       lines.push(`  - ${r.title}: ${r.rationale}`);
+    }
+    lines.push("");
+  }
+
+  const references = records.filter(
+    (r): r is ReferenceRecord => r.type === "reference",
+  );
+  const guides = records.filter(
+    (r): r is GuideRecord => r.type === "guide",
+  );
+
+  if (references.length > 0) {
+    lines.push("References:");
+    for (const r of references) {
+      let line = `  - ${r.name}: ${r.description}`;
+      if (r.files && r.files.length > 0) {
+        line += ` (${r.files.join(", ")})`;
+      }
+      lines.push(line);
+    }
+    lines.push("");
+  }
+  if (guides.length > 0) {
+    lines.push("Guides:");
+    for (const r of guides) {
+      lines.push(`  - ${r.name}: ${r.description}`);
     }
     lines.push("");
   }

@@ -25,7 +25,7 @@ export function registerRecordCommand(program: Command): void {
     .description("Record an expertise entry")
     .addOption(
       new Option("--type <type>", "record type")
-        .choices(["convention", "pattern", "failure", "decision"])
+        .choices(["convention", "pattern", "failure", "decision", "reference", "guide"])
         .makeOptionMandatory(),
     )
     .addOption(
@@ -171,6 +171,55 @@ export function registerRecordCommand(program: Command): void {
             };
             break;
           }
+
+          case "reference": {
+            const refName = options.name as string | undefined;
+            const refDesc =
+              (options.description as string | undefined) ?? content;
+            if (!refName || !refDesc) {
+              console.error(
+                chalk.red(
+                  "Error: reference records require --name and --description (or positional content).",
+                ),
+              );
+              process.exit(1);
+            }
+            record = {
+              type: "reference",
+              name: refName,
+              description: refDesc,
+              classification,
+              recorded_at: recordedAt,
+              ...(evidence && { evidence }),
+              ...(typeof options.files === "string" && {
+                files: options.files.split(","),
+              }),
+            };
+            break;
+          }
+
+          case "guide": {
+            const guideName = options.name as string | undefined;
+            const guideDesc =
+              (options.description as string | undefined) ?? content;
+            if (!guideName || !guideDesc) {
+              console.error(
+                chalk.red(
+                  "Error: guide records require --name and --description (or positional content).",
+                ),
+              );
+              process.exit(1);
+            }
+            record = {
+              type: "guide",
+              name: guideName,
+              description: guideDesc,
+              classification,
+              recorded_at: recordedAt,
+              ...(evidence && { evidence }),
+            };
+            break;
+          }
         }
 
         // Validate against JSON schema
@@ -190,7 +239,8 @@ export function registerRecordCommand(program: Command): void {
 
         if (dup && !options.force) {
           const isNamed =
-            record.type === "pattern" || record.type === "decision";
+            record.type === "pattern" || record.type === "decision" ||
+            record.type === "reference" || record.type === "guide";
 
           if (isNamed) {
             // Upsert: replace in place

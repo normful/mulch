@@ -25,7 +25,7 @@ Mulch is a passive CLI tool (`mulch-cli`) that manages structured expertise file
 
 ### Record Types & Classifications
 
-Four record types: `convention`, `pattern`, `failure`, `decision` — each with type-specific required fields defined in `src/schemas/record.ts`.
+Six record types: `convention`, `pattern`, `failure`, `decision`, `reference`, `guide` — each with type-specific required fields defined in `src/schemas/record.ts`.
 
 Three classifications with shelf lives for pruning: `foundational` (permanent), `tactical` (14 days), `observational` (30 days).
 

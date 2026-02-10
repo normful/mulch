@@ -73,5 +73,32 @@ export const recordSchema = {
       required: ["type", "title", "rationale", "classification", "recorded_at"],
       additionalProperties: false,
     },
+    {
+      type: "object",
+      properties: {
+        type: { type: "string", const: "reference" },
+        name: { type: "string" },
+        description: { type: "string" },
+        files: { type: "array", items: { type: "string" } },
+        classification: { $ref: "#/definitions/classification" },
+        recorded_at: { type: "string" },
+        evidence: { $ref: "#/definitions/evidence" },
+      },
+      required: ["type", "name", "description", "classification", "recorded_at"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        type: { type: "string", const: "guide" },
+        name: { type: "string" },
+        description: { type: "string" },
+        classification: { $ref: "#/definitions/classification" },
+        recorded_at: { type: "string" },
+        evidence: { $ref: "#/definitions/evidence" },
+      },
+      required: ["type", "name", "description", "classification", "recorded_at"],
+      additionalProperties: false,
+    },
   ],
 } as const;
