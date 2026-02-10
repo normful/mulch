@@ -96,9 +96,10 @@ describe("prune command", () => {
       const now = new Date();
       const staleRecords = records.filter((r) => {
         if (r.classification === "foundational") return false;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age > shelfLife.tactical;
         if (r.classification === "observational")
           return age > shelfLife.observational;
@@ -134,9 +135,10 @@ describe("prune command", () => {
 
       const kept = records.filter((r) => {
         if (r.classification === "foundational") return true;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age <= shelfLife.tactical;
         if (r.classification === "observational")
           return age <= shelfLife.observational;
@@ -173,9 +175,10 @@ describe("prune command", () => {
 
       const kept = records.filter((r) => {
         if (r.classification === "foundational") return true;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age <= shelfLife.tactical;
         if (r.classification === "observational")
           return age <= shelfLife.observational;
@@ -234,9 +237,10 @@ describe("prune command", () => {
 
       const kept = allRecords.filter((r) => {
         if (r.classification === "foundational") return true;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age <= shelfLife.tactical;
         if (r.classification === "observational")
           return age <= shelfLife.observational;
@@ -298,9 +302,10 @@ describe("prune command", () => {
       const testRecords = await readExpertiseFile(testingPath);
       const keptTesting = testRecords.filter((r) => {
         if (r.classification === "foundational") return true;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age <= shelfLife.tactical;
         if (r.classification === "observational")
           return age <= shelfLife.observational;
@@ -312,9 +317,10 @@ describe("prune command", () => {
       const archRecords = await readExpertiseFile(archPath);
       const keptArch = archRecords.filter((r) => {
         if (r.classification === "foundational") return true;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age <= shelfLife.tactical;
         if (r.classification === "observational")
           return age <= shelfLife.observational;
@@ -364,9 +370,10 @@ describe("prune command", () => {
 
       const stale = allRecords.filter((r) => {
         if (r.classification === "foundational") return false;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age > shelfLife.tactical;
         if (r.classification === "observational")
           return age > shelfLife.observational;
@@ -398,9 +405,10 @@ describe("prune command", () => {
 
       const stale = records.filter((r) => {
         if (r.classification === "foundational") return false;
-        const age =
+        const age = Math.floor(
           (now.getTime() - new Date(r.recorded_at).getTime()) /
-          (1000 * 60 * 60 * 24);
+            (1000 * 60 * 60 * 24),
+        );
         if (r.classification === "tactical") return age > shelfLife.tactical;
         if (r.classification === "observational")
           return age > shelfLife.observational;
