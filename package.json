@@ -1,7 +1,7 @@
 {
   "name": "mulch-cli",
   "version": "0.1.0",
-  "description": "Growing Expertise for Coding Agents — structured expertise files that accumulate over time, live in git, work with any agent",
+  "description": "Let your agents grow 🌱 — structured expertise files that accumulate over time, live in git, work with any agent",
   "type": "module",
   "bin": {
     "mulch": "./dist/cli.js"

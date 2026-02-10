@@ -1,4 +1,4 @@
-# Mulch — Growing Expertise for Coding Agents
+# Mulch — Let your agents grow 🌱
 
 Structured expertise files that accumulate over time, live in git, work with any agent, and run locally with zero dependencies.
 

@@ -18,7 +18,7 @@ const program = new Command();
 
 program
   .name("mulch")
-  .description("Growing Expertise for Coding Agents")
+  .description("Let your agents grow 🌱")
   .version("0.1.0");
 
 registerInitCommand(program);
