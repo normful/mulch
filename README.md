@@ -6,10 +6,22 @@ Agents start every session from zero. The pattern your agent discovered yesterda
 
 **Mulch is a passive layer.** It does not contain an LLM. Agents use Mulch — Mulch does not use agents.
 
+## Install
+
+```bash
+npm install -g mulch-cli
+```
+
+Or use directly with npx — no install required:
+
+```bash
+npx mulch-cli <command>
+```
+
 ## Quick Start
 
 ```bash
-npx mulch-cli init                                    # Create .mulch/ in your project
+mulch init                                            # Create .mulch/ in your project
 mulch add database                                    # Add a domain
 mulch record database --type convention "Use WAL mode for SQLite"
 mulch record database --type failure \
