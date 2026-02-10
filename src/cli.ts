@@ -13,13 +13,20 @@ import { registerStatusCommand } from "./commands/status.js";
 import { registerValidateCommand } from "./commands/validate.js";
 import { registerPruneCommand } from "./commands/prune.js";
 import { registerSearchCommand } from "./commands/search.js";
+import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerReadyCommand } from "./commands/ready.js";
+import { registerSyncCommand } from "./commands/sync.js";
+import { registerDeleteCommand } from "./commands/delete.js";
+import { registerLearnCommand } from "./commands/learn.js";
+import { registerCompactCommand } from "./commands/compact.js";
 
 const program = new Command();
 
 program
   .name("mulch")
   .description("Let your agents grow 🌱")
-  .version("0.1.0");
+  .version("0.1.0")
+  .option("--json", "output as structured JSON");
 
 registerInitCommand(program);
 registerAddCommand(program);
@@ -33,5 +40,11 @@ registerStatusCommand(program);
 registerValidateCommand(program);
 registerPruneCommand(program);
 registerSearchCommand(program);
+registerDoctorCommand(program);
+registerReadyCommand(program);
+registerSyncCommand(program);
+registerDeleteCommand(program);
+registerLearnCommand(program);
+registerCompactCommand(program);
 
 program.parse();

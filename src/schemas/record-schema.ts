@@ -1,3 +1,5 @@
+const linkArray = { type: "array", items: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" } } as const;
+
 export const recordSchema = {
   $schema: "http://json-schema.org/draft-07/schema#",
   title: "Mulch Expertise Record",
@@ -23,12 +25,15 @@ export const recordSchema = {
     {
       type: "object",
       properties: {
+        id: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" },
         type: { type: "string", const: "convention" },
         content: { type: "string" },
         classification: { $ref: "#/definitions/classification" },
         recorded_at: { type: "string" },
         evidence: { $ref: "#/definitions/evidence" },
         tags: { type: "array", items: { type: "string" } },
+        relates_to: linkArray,
+        supersedes: linkArray,
       },
       required: ["type", "content", "classification", "recorded_at"],
       additionalProperties: false,
@@ -36,6 +41,7 @@ export const recordSchema = {
     {
       type: "object",
       properties: {
+        id: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" },
         type: { type: "string", const: "pattern" },
         name: { type: "string" },
         description: { type: "string" },
@@ -44,6 +50,8 @@ export const recordSchema = {
         recorded_at: { type: "string" },
         evidence: { $ref: "#/definitions/evidence" },
         tags: { type: "array", items: { type: "string" } },
+        relates_to: linkArray,
+        supersedes: linkArray,
       },
       required: ["type", "name", "description", "classification", "recorded_at"],
       additionalProperties: false,
@@ -51,6 +59,7 @@ export const recordSchema = {
     {
       type: "object",
       properties: {
+        id: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" },
         type: { type: "string", const: "failure" },
         description: { type: "string" },
         resolution: { type: "string" },
@@ -58,6 +67,8 @@ export const recordSchema = {
         recorded_at: { type: "string" },
         evidence: { $ref: "#/definitions/evidence" },
         tags: { type: "array", items: { type: "string" } },
+        relates_to: linkArray,
+        supersedes: linkArray,
       },
       required: ["type", "description", "resolution", "classification", "recorded_at"],
       additionalProperties: false,
@@ -65,6 +76,7 @@ export const recordSchema = {
     {
       type: "object",
       properties: {
+        id: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" },
         type: { type: "string", const: "decision" },
         title: { type: "string" },
         rationale: { type: "string" },
@@ -73,6 +85,8 @@ export const recordSchema = {
         recorded_at: { type: "string" },
         evidence: { $ref: "#/definitions/evidence" },
         tags: { type: "array", items: { type: "string" } },
+        relates_to: linkArray,
+        supersedes: linkArray,
       },
       required: ["type", "title", "rationale", "classification", "recorded_at"],
       additionalProperties: false,
@@ -80,6 +94,7 @@ export const recordSchema = {
     {
       type: "object",
       properties: {
+        id: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" },
         type: { type: "string", const: "reference" },
         name: { type: "string" },
         description: { type: "string" },
@@ -88,6 +103,8 @@ export const recordSchema = {
         recorded_at: { type: "string" },
         evidence: { $ref: "#/definitions/evidence" },
         tags: { type: "array", items: { type: "string" } },
+        relates_to: linkArray,
+        supersedes: linkArray,
       },
       required: ["type", "name", "description", "classification", "recorded_at"],
       additionalProperties: false,
@@ -95,6 +112,7 @@ export const recordSchema = {
     {
       type: "object",
       properties: {
+        id: { type: "string", pattern: "^mx-[0-9a-f]{4,8}$" },
         type: { type: "string", const: "guide" },
         name: { type: "string" },
         description: { type: "string" },
@@ -102,6 +120,8 @@ export const recordSchema = {
         recorded_at: { type: "string" },
         evidence: { $ref: "#/definitions/evidence" },
         tags: { type: "array", items: { type: "string" } },
+        relates_to: linkArray,
+        supersedes: linkArray,
       },
       required: ["type", "name", "description", "classification", "recorded_at"],
       additionalProperties: false,

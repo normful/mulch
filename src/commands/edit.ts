@@ -9,12 +9,13 @@ import {
 } from "../utils/expertise.js";
 import { recordSchema } from "../schemas/record-schema.js";
 import type { Classification } from "../schemas/record.js";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 export function registerEditCommand(program: Command): void {
   program
     .command("edit")
     .argument("<domain>", "expertise domain")
-    .argument("<index>", "1-based record index")
+    .argument("<identifier>", "record ID (mx-XXXXXX) or 1-based index")
     .description("Edit an existing expertise record")
     .addOption(
       new Option(
@@ -29,33 +30,31 @@ export function registerEditCommand(program: Command): void {
     .option("--title <title>", "update title (decision)")
     .option("--rationale <rationale>", "update rationale (decision)")
     .option("--files <files>", "update related files (comma-separated)")
+    .option("--relates-to <ids>", "update linked record IDs (comma-separated)")
+    .option("--supersedes <ids>", "update superseded record IDs (comma-separated)")
     .action(
       async (
         domain: string,
-        indexStr: string,
+        identifier: string,
         options: Record<string, unknown>,
       ) => {
+        const jsonMode = program.opts().json === true;
         try {
           const config = await readConfig();
 
           if (!config.domains.includes(domain)) {
-            console.error(
-              chalk.red(`Error: domain "${domain}" not found in config.`),
-            );
-            console.error(
-              chalk.red(
-                `Available domains: ${config.domains.join(", ") || "(none)"}`,
-              ),
-            );
-            process.exitCode = 1;
-            return;
-          }
-
-          const index = parseInt(indexStr, 10);
-          if (isNaN(index) || index < 1) {
-            console.error(
-              chalk.red("Error: index must be a positive integer (1-based)."),
-            );
+            if (jsonMode) {
+              outputJsonError("edit", `Domain "${domain}" not found in config. Available domains: ${config.domains.join(", ") || "(none)"}`);
+            } else {
+              console.error(
+                chalk.red(`Error: domain "${domain}" not found in config.`),
+              );
+              console.error(
+                chalk.red(
+                  `Available domains: ${config.domains.join(", ") || "(none)"}`,
+                ),
+              );
+            }
             process.exitCode = 1;
             return;
           }
@@ -63,21 +62,70 @@ export function registerEditCommand(program: Command): void {
           const filePath = getExpertisePath(domain);
           const records = await readExpertiseFile(filePath);
 
-          if (index > records.length) {
-            console.error(
-              chalk.red(
-                `Error: index ${index} out of range. Domain "${domain}" has ${records.length} record(s).`,
-              ),
-            );
-            process.exitCode = 1;
-            return;
+          let targetIndex: number;
+
+          if (identifier.startsWith("mx-")) {
+            // ID-based lookup
+            const found = records.findIndex((r) => r.id === identifier);
+            if (found === -1) {
+              if (jsonMode) {
+                outputJsonError("edit", `Record with ID "${identifier}" not found in domain "${domain}".`);
+              } else {
+                console.error(
+                  chalk.red(`Error: record with ID "${identifier}" not found in domain "${domain}".`),
+                );
+              }
+              process.exitCode = 1;
+              return;
+            }
+            targetIndex = found;
+          } else {
+            // Legacy 1-based index
+            const index = parseInt(identifier, 10);
+            if (isNaN(index) || index < 1) {
+              if (jsonMode) {
+                outputJsonError("edit", "Identifier must be a record ID (mx-XXXXXX) or a positive integer (1-based index).");
+              } else {
+                console.error(
+                  chalk.red("Error: identifier must be a record ID (mx-XXXXXX) or a positive integer (1-based index)."),
+                );
+              }
+              process.exitCode = 1;
+              return;
+            }
+            if (index > records.length) {
+              if (jsonMode) {
+                outputJsonError("edit", `Index ${index} out of range. Domain "${domain}" has ${records.length} record(s).`);
+              } else {
+                console.error(
+                  chalk.red(
+                    `Error: index ${index} out of range. Domain "${domain}" has ${records.length} record(s).`,
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
+            }
+            targetIndex = index - 1;
           }
 
-          const record = { ...records[index - 1] };
+          const record = { ...records[targetIndex] };
 
           // Apply updates based on record type
           if (options.classification) {
             record.classification = options.classification as Classification;
+          }
+          if (typeof options.relatesTo === "string") {
+            record.relates_to = options.relatesTo
+              .split(",")
+              .map((id: string) => id.trim())
+              .filter(Boolean);
+          }
+          if (typeof options.supersedes === "string") {
+            record.supersedes = options.supersedes
+              .split(",")
+              .map((id: string) => id.trim())
+              .filter(Boolean);
           }
 
           switch (record.type) {
@@ -138,33 +186,59 @@ export function registerEditCommand(program: Command): void {
           const ajv = new Ajv();
           const validate = ajv.compile(recordSchema);
           if (!validate(record)) {
-            console.error(
-              chalk.red("Error: updated record failed schema validation:"),
-            );
-            for (const err of validate.errors ?? []) {
+            const errors = (validate.errors ?? []).map((err) => `${err.instancePath} ${err.message}`);
+            if (jsonMode) {
+              outputJsonError("edit", `Updated record failed schema validation: ${errors.join("; ")}`);
+            } else {
               console.error(
-                chalk.red(`  ${err.instancePath} ${err.message}`),
+                chalk.red("Error: updated record failed schema validation:"),
               );
+              for (const err of validate.errors ?? []) {
+                console.error(
+                  chalk.red(`  ${err.instancePath} ${err.message}`),
+                );
+              }
             }
             process.exitCode = 1;
             return;
           }
 
-          records[index - 1] = record;
+          records[targetIndex] = record;
           await writeExpertiseFile(filePath, records);
 
-          console.log(
-            chalk.green(
-              `\u2714 Updated ${record.type} #${index} in ${domain}`,
-            ),
-          );
+          if (jsonMode) {
+            outputJson({
+              success: true,
+              command: "edit",
+              domain,
+              id: record.id ?? null,
+              index: targetIndex + 1,
+              type: record.type,
+              record,
+            });
+          } else {
+            const idLabel = record.id ? ` (${record.id})` : "";
+            console.log(
+              chalk.green(
+                `\u2714 Updated ${record.type} #${targetIndex + 1}${idLabel} in ${domain}`,
+              ),
+            );
+          }
         } catch (err) {
           if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-            console.error(
-              "Error: No .mulch/ directory found. Run `mulch init` first.",
-            );
+            if (jsonMode) {
+              outputJsonError("edit", "No .mulch/ directory found. Run `mulch init` first.");
+            } else {
+              console.error(
+                "Error: No .mulch/ directory found. Run `mulch init` first.",
+              );
+            }
           } else {
-            console.error(`Error: ${(err as Error).message}`);
+            if (jsonMode) {
+              outputJsonError("edit", (err as Error).message);
+            } else {
+              console.error(`Error: ${(err as Error).message}`);
+            }
           }
           process.exitCode = 1;
         }

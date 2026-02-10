@@ -8,7 +8,7 @@ import type {
   GuideRecord,
 } from "../schemas/record.js";
 
-function formatTimeAgo(date: Date): string {
+export function formatTimeAgo(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -31,13 +31,24 @@ function formatEvidence(evidence: ConventionRecord["evidence"]): string {
   return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
 }
 
+function formatLinks(r: ExpertiseRecord): string {
+  const parts: string[] = [];
+  if (r.relates_to && r.relates_to.length > 0) {
+    parts.push(`relates to: ${r.relates_to.join(", ")}`);
+  }
+  if (r.supersedes && r.supersedes.length > 0) {
+    parts.push(`supersedes: ${r.supersedes.join(", ")}`);
+  }
+  return parts.length > 0 ? ` [${parts.join("; ")}]` : "";
+}
+
 function formatRecordMeta(r: ExpertiseRecord, full: boolean): string {
-  if (!full) return "";
+  if (!full) return formatLinks(r);
   const parts = [`(${r.classification})${formatEvidence(r.evidence)}`];
   if (r.tags && r.tags.length > 0) {
     parts.push(`[tags: ${r.tags.join(", ")}]`);
   }
-  return " " + parts.join(" ");
+  return " " + parts.join(" ") + formatLinks(r);
 }
 
 function formatConventions(records: ConventionRecord[], full = false): string {
@@ -115,24 +126,42 @@ function truncate(text: string, maxLen = 100): string {
   return text.slice(0, maxLen) + "...";
 }
 
+export function getRecordSummary(record: ExpertiseRecord): string {
+  switch (record.type) {
+    case "convention":
+      return truncate(record.content, 60);
+    case "pattern":
+      return record.name;
+    case "failure":
+      return truncate(record.description, 60);
+    case "decision":
+      return record.title;
+    case "reference":
+      return record.name;
+    case "guide":
+      return record.name;
+  }
+}
+
 function compactLine(r: ExpertiseRecord): string {
+  const links = formatLinks(r);
   switch (r.type) {
     case "convention":
-      return `- [convention] ${truncate(r.content)}`;
+      return `- [convention] ${truncate(r.content)}${links}`;
     case "pattern": {
       const files = r.files && r.files.length > 0 ? ` (${r.files.join(", ")})` : "";
-      return `- [pattern] ${r.name}: ${truncate(r.description)}${files}`;
+      return `- [pattern] ${r.name}: ${truncate(r.description)}${files}${links}`;
     }
     case "failure":
-      return `- [failure] ${truncate(r.description)} → ${truncate(r.resolution)}`;
+      return `- [failure] ${truncate(r.description)} → ${truncate(r.resolution)}${links}`;
     case "decision":
-      return `- [decision] ${r.title}: ${truncate(r.rationale)}`;
+      return `- [decision] ${r.title}: ${truncate(r.rationale)}${links}`;
     case "reference": {
       const refFiles = r.files && r.files.length > 0 ? `: ${r.files.join(", ")}` : `: ${truncate(r.description)}`;
-      return `- [reference] ${r.name}${refFiles}`;
+      return `- [reference] ${r.name}${refFiles}${links}`;
     }
     case "guide":
-      return `- [guide] ${r.name}: ${truncate(r.description)}`;
+      return `- [guide] ${r.name}: ${truncate(r.description)}${links}`;
   }
 }
 
@@ -222,6 +251,15 @@ export function formatPrimeOutput(
 
   lines.push("# Project Expertise (via Mulch)");
   lines.push("");
+  lines.push("> **Context Recovery**: Run `mulch prime` after compaction, clear, or new session");
+  lines.push("");
+  lines.push("## Rules");
+  lines.push("");
+  lines.push("- **Record learnings**: When you discover a pattern, fix a bug, or make a design decision — record it with `mulch record`");
+  lines.push("- **Check expertise first**: Before implementing, check if relevant expertise exists with `mulch search` or `mulch prime --context`");
+  lines.push("- **Do NOT** store expertise in code comments, markdown files, or memory tools — use `mulch record`");
+  lines.push("- Run `mulch doctor` if you are unsure whether records are healthy");
+  lines.push("");
 
   if (domainSections.length === 0) {
     lines.push("No expertise recorded yet. Use `mulch add <domain>` to create a domain, then `mulch record` to add entries.");
@@ -231,6 +269,7 @@ export function formatPrimeOutput(
     lines.push("");
   }
 
+  lines.push("");
   lines.push("## Recording New Learnings");
   lines.push("");
   lines.push("When you discover a pattern, convention, failure, or make an architectural decision:");
@@ -243,6 +282,18 @@ export function formatPrimeOutput(
   lines.push('mulch record <domain> --type reference --name "..." --description "..." --files "..."');
   lines.push('mulch record <domain> --type guide --name "..." --description "..."');
   lines.push("```");
+  lines.push("");
+  lines.push("## Session End");
+  lines.push("");
+  lines.push("**IMPORTANT**: Before ending your session, record what you learned and sync:");
+  lines.push("");
+  lines.push("```");
+  lines.push("[ ] mulch learn          # see what files changed — decide what to record");
+  lines.push("[ ] mulch doctor         # verify records are healthy");
+  lines.push("[ ] mulch sync           # validate, stage, and commit .mulch/ changes");
+  lines.push("```");
+  lines.push("");
+  lines.push("Do NOT skip this. Unrecorded learnings are lost for the next session.");
 
   return lines.join("\n");
 }
@@ -304,6 +355,12 @@ export function formatDomainExpertiseXml(
     if (r.tags && r.tags.length > 0) {
       lines.push(`    <tags>${r.tags.map(xmlEscape).join(", ")}</tags>`);
     }
+    if (r.relates_to && r.relates_to.length > 0) {
+      lines.push(`    <relates_to>${r.relates_to.join(", ")}</relates_to>`);
+    }
+    if (r.supersedes && r.supersedes.length > 0) {
+      lines.push(`    <supersedes>${r.supersedes.join(", ")}</supersedes>`);
+    }
     lines.push(`  </${r.type}>`);
   }
 
@@ -356,7 +413,7 @@ export function formatDomainExpertisePlain(
   if (conventions.length > 0) {
     lines.push("Conventions:");
     for (const r of conventions) {
-      lines.push(`  - ${r.content}`);
+      lines.push(`  - ${r.content}${formatLinks(r)}`);
     }
     lines.push("");
   }
@@ -367,6 +424,7 @@ export function formatDomainExpertisePlain(
       if (r.files && r.files.length > 0) {
         line += ` (${r.files.join(", ")})`;
       }
+      line += formatLinks(r);
       lines.push(line);
     }
     lines.push("");
@@ -374,7 +432,7 @@ export function formatDomainExpertisePlain(
   if (failures.length > 0) {
     lines.push("Known Failures:");
     for (const r of failures) {
-      lines.push(`  - ${r.description}`);
+      lines.push(`  - ${r.description}${formatLinks(r)}`);
       lines.push(`    Fix: ${r.resolution}`);
     }
     lines.push("");
@@ -382,7 +440,7 @@ export function formatDomainExpertisePlain(
   if (decisions.length > 0) {
     lines.push("Decisions:");
     for (const r of decisions) {
-      lines.push(`  - ${r.title}: ${r.rationale}`);
+      lines.push(`  - ${r.title}: ${r.rationale}${formatLinks(r)}`);
     }
     lines.push("");
   }
@@ -401,6 +459,7 @@ export function formatDomainExpertisePlain(
       if (r.files && r.files.length > 0) {
         line += ` (${r.files.join(", ")})`;
       }
+      line += formatLinks(r);
       lines.push(line);
     }
     lines.push("");
@@ -408,7 +467,7 @@ export function formatDomainExpertisePlain(
   if (guides.length > 0) {
     lines.push("Guides:");
     for (const r of guides) {
-      lines.push(`  - ${r.name}: ${r.description}`);
+      lines.push(`  - ${r.name}: ${r.description}${formatLinks(r)}`);
     }
     lines.push("");
   }

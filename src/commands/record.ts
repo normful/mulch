@@ -16,6 +16,7 @@ import type {
   Classification,
   Evidence,
 } from "../schemas/record.js";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 export function registerRecordCommand(program: Command): void {
   program
@@ -43,6 +44,8 @@ export function registerRecordCommand(program: Command): void {
     .option("--evidence-commit <commit>", "evidence: commit hash")
     .option("--evidence-issue <issue>", "evidence: issue reference")
     .option("--evidence-file <file>", "evidence: file path")
+    .option("--relates-to <ids>", "comma-separated record IDs this relates to")
+    .option("--supersedes <ids>", "comma-separated record IDs this supersedes")
     .option("--force", "force recording even if duplicate exists")
     .action(
       async (
@@ -50,18 +53,24 @@ export function registerRecordCommand(program: Command): void {
         content: string | undefined,
         options: Record<string, unknown>,
       ) => {
+        const jsonMode = program.opts().json === true;
         const config = await readConfig();
 
         if (!config.domains.includes(domain)) {
-          console.error(
-            chalk.red(`Error: domain "${domain}" not found in config.`),
-          );
-          console.error(
-            chalk.red(
-              `Available domains: ${config.domains.join(", ") || "(none)"}`,
-            ),
-          );
-          process.exit(1);
+          if (jsonMode) {
+            outputJsonError("record", `Domain "${domain}" not found in config. Available domains: ${config.domains.join(", ") || "(none)"}`);
+          } else {
+            console.error(
+              chalk.red(`Error: domain "${domain}" not found in config.`),
+            );
+            console.error(
+              chalk.red(
+                `Available domains: ${config.domains.join(", ") || "(none)"}`,
+              ),
+            );
+          }
+          process.exitCode = 1;
+          return;
         }
 
         const recordType = options.type as RecordType;
@@ -88,18 +97,39 @@ export function registerRecordCommand(program: Command): void {
                 .filter(Boolean)
             : undefined;
 
+        const relatesTo =
+          typeof options.relatesTo === "string"
+            ? options.relatesTo
+                .split(",")
+                .map((id: string) => id.trim())
+                .filter(Boolean)
+            : undefined;
+
+        const supersedes =
+          typeof options.supersedes === "string"
+            ? options.supersedes
+                .split(",")
+                .map((id: string) => id.trim())
+                .filter(Boolean)
+            : undefined;
+
         let record: ExpertiseRecord;
 
         switch (recordType) {
           case "convention": {
             const conventionContent = content ?? (options.description as string | undefined);
             if (!conventionContent) {
-              console.error(
-                chalk.red(
-                  "Error: convention records require content (positional argument or --description).",
-                ),
-              );
-              process.exit(1);
+              if (jsonMode) {
+                outputJsonError("record", "Convention records require content (positional argument or --description).");
+              } else {
+                console.error(
+                  chalk.red(
+                    "Error: convention records require content (positional argument or --description).",
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
             }
             record = {
               type: "convention",
@@ -108,6 +138,8 @@ export function registerRecordCommand(program: Command): void {
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
               ...(tags && tags.length > 0 && { tags }),
+              ...(relatesTo && relatesTo.length > 0 && { relates_to: relatesTo }),
+              ...(supersedes && supersedes.length > 0 && { supersedes }),
             };
             break;
           }
@@ -117,12 +149,17 @@ export function registerRecordCommand(program: Command): void {
             const patternDesc =
               (options.description as string | undefined) ?? content;
             if (!patternName || !patternDesc) {
-              console.error(
-                chalk.red(
-                  "Error: pattern records require --name and --description (or positional content).",
-                ),
-              );
-              process.exit(1);
+              if (jsonMode) {
+                outputJsonError("record", "Pattern records require --name and --description (or positional content).");
+              } else {
+                console.error(
+                  chalk.red(
+                    "Error: pattern records require --name and --description (or positional content).",
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
             }
             record = {
               type: "pattern",
@@ -135,6 +172,8 @@ export function registerRecordCommand(program: Command): void {
                 files: options.files.split(","),
               }),
               ...(tags && tags.length > 0 && { tags }),
+              ...(relatesTo && relatesTo.length > 0 && { relates_to: relatesTo }),
+              ...(supersedes && supersedes.length > 0 && { supersedes }),
             };
             break;
           }
@@ -143,12 +182,17 @@ export function registerRecordCommand(program: Command): void {
             const failureDesc = options.description as string | undefined;
             const failureResolution = options.resolution as string | undefined;
             if (!failureDesc || !failureResolution) {
-              console.error(
-                chalk.red(
-                  "Error: failure records require --description and --resolution.",
-                ),
-              );
-              process.exit(1);
+              if (jsonMode) {
+                outputJsonError("record", "Failure records require --description and --resolution.");
+              } else {
+                console.error(
+                  chalk.red(
+                    "Error: failure records require --description and --resolution.",
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
             }
             record = {
               type: "failure",
@@ -158,6 +202,8 @@ export function registerRecordCommand(program: Command): void {
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
               ...(tags && tags.length > 0 && { tags }),
+              ...(relatesTo && relatesTo.length > 0 && { relates_to: relatesTo }),
+              ...(supersedes && supersedes.length > 0 && { supersedes }),
             };
             break;
           }
@@ -166,12 +212,17 @@ export function registerRecordCommand(program: Command): void {
             const decisionTitle = options.title as string | undefined;
             const decisionRationale = options.rationale as string | undefined;
             if (!decisionTitle || !decisionRationale) {
-              console.error(
-                chalk.red(
-                  "Error: decision records require --title and --rationale.",
-                ),
-              );
-              process.exit(1);
+              if (jsonMode) {
+                outputJsonError("record", "Decision records require --title and --rationale.");
+              } else {
+                console.error(
+                  chalk.red(
+                    "Error: decision records require --title and --rationale.",
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
             }
             record = {
               type: "decision",
@@ -181,6 +232,8 @@ export function registerRecordCommand(program: Command): void {
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
               ...(tags && tags.length > 0 && { tags }),
+              ...(relatesTo && relatesTo.length > 0 && { relates_to: relatesTo }),
+              ...(supersedes && supersedes.length > 0 && { supersedes }),
             };
             break;
           }
@@ -190,12 +243,17 @@ export function registerRecordCommand(program: Command): void {
             const refDesc =
               (options.description as string | undefined) ?? content;
             if (!refName || !refDesc) {
-              console.error(
-                chalk.red(
-                  "Error: reference records require --name and --description (or positional content).",
-                ),
-              );
-              process.exit(1);
+              if (jsonMode) {
+                outputJsonError("record", "Reference records require --name and --description (or positional content).");
+              } else {
+                console.error(
+                  chalk.red(
+                    "Error: reference records require --name and --description (or positional content).",
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
             }
             record = {
               type: "reference",
@@ -208,6 +266,8 @@ export function registerRecordCommand(program: Command): void {
                 files: options.files.split(","),
               }),
               ...(tags && tags.length > 0 && { tags }),
+              ...(relatesTo && relatesTo.length > 0 && { relates_to: relatesTo }),
+              ...(supersedes && supersedes.length > 0 && { supersedes }),
             };
             break;
           }
@@ -217,12 +277,17 @@ export function registerRecordCommand(program: Command): void {
             const guideDesc =
               (options.description as string | undefined) ?? content;
             if (!guideName || !guideDesc) {
-              console.error(
-                chalk.red(
-                  "Error: guide records require --name and --description (or positional content).",
-                ),
-              );
-              process.exit(1);
+              if (jsonMode) {
+                outputJsonError("record", "Guide records require --name and --description (or positional content).");
+              } else {
+                console.error(
+                  chalk.red(
+                    "Error: guide records require --name and --description (or positional content).",
+                  ),
+                );
+              }
+              process.exitCode = 1;
+              return;
             }
             record = {
               type: "guide",
@@ -232,6 +297,8 @@ export function registerRecordCommand(program: Command): void {
               recorded_at: recordedAt,
               ...(evidence && { evidence }),
               ...(tags && tags.length > 0 && { tags }),
+              ...(relatesTo && relatesTo.length > 0 && { relates_to: relatesTo }),
+              ...(supersedes && supersedes.length > 0 && { supersedes }),
             };
             break;
           }
@@ -241,11 +308,17 @@ export function registerRecordCommand(program: Command): void {
         const ajv = new Ajv();
         const validate = ajv.compile(recordSchema);
         if (!validate(record)) {
-          console.error(chalk.red("Error: record failed schema validation:"));
-          for (const err of validate.errors ?? []) {
-            console.error(chalk.red(`  ${err.instancePath} ${err.message}`));
+          const errors = (validate.errors ?? []).map((err) => `${err.instancePath} ${err.message}`);
+          if (jsonMode) {
+            outputJsonError("record", `Schema validation failed: ${errors.join("; ")}`);
+          } else {
+            console.error(chalk.red("Error: record failed schema validation:"));
+            for (const err of validate.errors ?? []) {
+              console.error(chalk.red(`  ${err.instancePath} ${err.message}`));
+            }
           }
-          process.exit(1);
+          process.exitCode = 1;
+          return;
         }
 
         const filePath = getExpertisePath(domain);
@@ -261,24 +334,58 @@ export function registerRecordCommand(program: Command): void {
             // Upsert: replace in place
             existing[dup.index] = record;
             await writeExpertiseFile(filePath, existing);
-            console.log(
-              chalk.green(
-                `\u2714 Updated existing ${recordType} in ${domain} (record #${dup.index + 1})`,
-              ),
-            );
+            if (jsonMode) {
+              outputJson({
+                success: true,
+                command: "record",
+                action: "updated",
+                domain,
+                type: recordType,
+                index: dup.index + 1,
+                record,
+              });
+            } else {
+              console.log(
+                chalk.green(
+                  `\u2714 Updated existing ${recordType} in ${domain} (record #${dup.index + 1})`,
+                ),
+              );
+            }
           } else {
             // Exact match: skip
-            console.log(
-              chalk.yellow(
-                `Duplicate ${recordType} already exists in ${domain} (record #${dup.index + 1}). Use --force to add anyway.`,
-              ),
-            );
+            if (jsonMode) {
+              outputJson({
+                success: true,
+                command: "record",
+                action: "skipped",
+                domain,
+                type: recordType,
+                index: dup.index + 1,
+              });
+            } else {
+              console.log(
+                chalk.yellow(
+                  `Duplicate ${recordType} already exists in ${domain} (record #${dup.index + 1}). Use --force to add anyway.`,
+                ),
+              );
+            }
           }
         } else {
           await appendRecord(filePath, record);
-          console.log(
-            chalk.green(`\u2714 Recorded ${recordType} in ${domain}`),
-          );
+          if (jsonMode) {
+            outputJson({
+              success: true,
+              command: "record",
+              action: "created",
+              domain,
+              type: recordType,
+              record,
+            });
+          } else {
+            console.log(
+              chalk.green(`\u2714 Recorded ${recordType} in ${domain}`),
+            );
+          }
         }
       },
     );

@@ -1,0 +1,185 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  generateRecordId,
+  appendRecord,
+  readExpertiseFile,
+  writeExpertiseFile,
+  createExpertiseFile,
+} from "../../src/utils/expertise.js";
+import { initMulchDir, writeConfig, getExpertisePath } from "../../src/utils/config.js";
+import { DEFAULT_CONFIG } from "../../src/schemas/config.js";
+import type { ExpertiseRecord } from "../../src/schemas/record.js";
+
+let tmpDir: string;
+
+beforeEach(async () => {
+  tmpDir = await mkdtemp(join(tmpdir(), "mulch-id-test-"));
+  await initMulchDir(tmpDir);
+  await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+});
+
+afterEach(async () => {
+  await rm(tmpDir, { recursive: true, force: true });
+});
+
+describe("generateRecordId", () => {
+  it("generates deterministic IDs for same content", () => {
+    const record: ExpertiseRecord = {
+      type: "convention",
+      content: "Always use vitest",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    };
+    const id1 = generateRecordId(record);
+    const id2 = generateRecordId(record);
+    expect(id1).toBe(id2);
+  });
+
+  it("generates different IDs for different content", () => {
+    const r1: ExpertiseRecord = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    };
+    const r2: ExpertiseRecord = {
+      type: "convention",
+      content: "Use jest",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    };
+    expect(generateRecordId(r1)).not.toBe(generateRecordId(r2));
+  });
+
+  it("generates IDs matching the mx-XXXXXX pattern", () => {
+    const record: ExpertiseRecord = {
+      type: "pattern",
+      name: "test-pattern",
+      description: "A test pattern",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+    const id = generateRecordId(record);
+    expect(id).toMatch(/^mx-[0-9a-f]{6}$/);
+  });
+
+  it("uses name for pattern records", () => {
+    const r1: ExpertiseRecord = {
+      type: "pattern",
+      name: "same-name",
+      description: "Different desc 1",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+    const r2: ExpertiseRecord = {
+      type: "pattern",
+      name: "same-name",
+      description: "Different desc 2",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    };
+    // Same name = same ID (regardless of description or classification)
+    expect(generateRecordId(r1)).toBe(generateRecordId(r2));
+  });
+
+  it("uses title for decision records", () => {
+    const record: ExpertiseRecord = {
+      type: "decision",
+      title: "Use TypeScript",
+      rationale: "Type safety",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+    };
+    const id = generateRecordId(record);
+    expect(id).toMatch(/^mx-[0-9a-f]{6}$/);
+  });
+
+  it("uses description for failure records", () => {
+    const record: ExpertiseRecord = {
+      type: "failure",
+      description: "OOM on large files",
+      resolution: "Stream processing",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+    const id = generateRecordId(record);
+    expect(id).toMatch(/^mx-[0-9a-f]{6}$/);
+  });
+});
+
+describe("appendRecord with ID generation", () => {
+  it("auto-generates ID when appending a record without one", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record: ExpertiseRecord = {
+      type: "convention",
+      content: "Test convention",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+
+    await appendRecord(filePath, record);
+    const records = await readExpertiseFile(filePath);
+    expect(records[0].id).toMatch(/^mx-[0-9a-f]{6}$/);
+  });
+
+  it("preserves existing ID when appending", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record: ExpertiseRecord = {
+      id: "mx-aabbcc",
+      type: "convention",
+      content: "Test convention",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+
+    await appendRecord(filePath, record);
+    const records = await readExpertiseFile(filePath);
+    expect(records[0].id).toBe("mx-aabbcc");
+  });
+});
+
+describe("writeExpertiseFile with lazy migration", () => {
+  it("assigns IDs to records that lack them", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const records: ExpertiseRecord[] = [
+      {
+        type: "convention",
+        content: "No ID yet",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      },
+    ];
+
+    await writeExpertiseFile(filePath, records);
+    const read = await readExpertiseFile(filePath);
+    expect(read[0].id).toMatch(/^mx-[0-9a-f]{6}$/);
+  });
+
+  it("preserves existing IDs during write", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const records: ExpertiseRecord[] = [
+      {
+        id: "mx-112233",
+        type: "convention",
+        content: "Has ID",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      },
+    ];
+
+    await writeExpertiseFile(filePath, records);
+    const read = await readExpertiseFile(filePath);
+    expect(read[0].id).toBe("mx-112233");
+  });
+});

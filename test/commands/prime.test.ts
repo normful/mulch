@@ -26,6 +26,7 @@ import {
   formatPrimeOutputCompact,
   formatMcpOutput,
 } from "../../src/utils/format.js";
+import { filterByContext, fileMatchesAny } from "../../src/utils/git.js";
 
 describe("prime command", () => {
   let tmpDir: string;
@@ -859,6 +860,430 @@ describe("prime command", () => {
       expect(output).toContain("## api (1 entries");
       expect(output).toContain("- [convention] Use WAL mode");
       expect(output).toContain("- [decision] REST over GraphQL: Simpler tooling");
+    });
+  });
+
+  describe("context filtering", () => {
+    it("fileMatchesAny matches exact paths", () => {
+      expect(fileMatchesAny("src/cli.ts", ["src/cli.ts"])).toBe(true);
+      expect(fileMatchesAny("src/cli.ts", ["src/other.ts"])).toBe(false);
+    });
+
+    it("fileMatchesAny matches by suffix", () => {
+      // record file is a suffix of changed file
+      expect(fileMatchesAny("cli.ts", ["src/cli.ts"])).toBe(true);
+      // changed file is a suffix of record file
+      expect(fileMatchesAny("src/commands/prime.ts", ["prime.ts"])).toBe(true);
+    });
+
+    it("filterByContext keeps conventions (no files field)", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "convention",
+            content: "Always lint",
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/unrelated.ts"],
+      );
+      expect(records).toHaveLength(1);
+      expect(records[0].type).toBe("convention");
+    });
+
+    it("filterByContext keeps failures (no files field)", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "failure",
+            description: "OOM crash",
+            resolution: "Use streaming",
+            classification: "tactical",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/unrelated.ts"],
+      );
+      expect(records).toHaveLength(1);
+    });
+
+    it("filterByContext keeps decisions (no files field)", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "decision",
+            title: "Use ESM",
+            rationale: "Better treeshaking",
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/unrelated.ts"],
+      );
+      expect(records).toHaveLength(1);
+    });
+
+    it("filterByContext keeps guides (no files field)", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "guide",
+            name: "add-command",
+            description: "How to add a command",
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/unrelated.ts"],
+      );
+      expect(records).toHaveLength(1);
+    });
+
+    it("filterByContext keeps patterns with matching files", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "pattern",
+            name: "cli-pattern",
+            description: "CLI entry point pattern",
+            files: ["src/cli.ts"],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/cli.ts"],
+      );
+      expect(records).toHaveLength(1);
+    });
+
+    it("filterByContext excludes patterns with non-matching files", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "pattern",
+            name: "db-pattern",
+            description: "Database access pattern",
+            files: ["src/db/schema.ts"],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/cli.ts", "src/commands/prime.ts"],
+      );
+      expect(records).toHaveLength(0);
+    });
+
+    it("filterByContext keeps references with matching files", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "reference",
+            name: "entry-point",
+            description: "Main entry",
+            files: ["src/cli.ts"],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/cli.ts"],
+      );
+      expect(records).toHaveLength(1);
+    });
+
+    it("filterByContext excludes references with non-matching files", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "reference",
+            name: "entry-point",
+            description: "Main entry",
+            files: ["src/index.ts"],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/cli.ts"],
+      );
+      expect(records).toHaveLength(0);
+    });
+
+    it("filterByContext keeps patterns with empty files array", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "pattern",
+            name: "general-pattern",
+            description: "A general pattern",
+            files: [],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/cli.ts"],
+      );
+      expect(records).toHaveLength(1);
+    });
+
+    it("filterByContext with mixed records filters correctly", () => {
+      const records = filterByContext(
+        [
+          {
+            type: "convention",
+            content: "Always lint",
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+          {
+            type: "pattern",
+            name: "matching-pattern",
+            description: "Relevant pattern",
+            files: ["src/commands/prime.ts"],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+          {
+            type: "pattern",
+            name: "unrelated-pattern",
+            description: "Unrelated pattern",
+            files: ["src/db/schema.ts"],
+            classification: "foundational",
+            recorded_at: new Date().toISOString(),
+          },
+          {
+            type: "failure",
+            description: "A known failure",
+            resolution: "Fix it",
+            classification: "tactical",
+            recorded_at: new Date().toISOString(),
+          },
+        ],
+        ["src/commands/prime.ts"],
+      );
+      expect(records).toHaveLength(3);
+      expect(records.map((r) => r.type)).toEqual(["convention", "pattern", "failure"]);
+    });
+
+    it("filtered records integrate with formatting pipeline", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["cli"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("cli", tmpDir);
+      await createExpertiseFile(filePath);
+
+      await appendRecord(filePath, {
+        type: "convention",
+        content: "Use ESM imports",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "pattern",
+        name: "cli-entry",
+        description: "Main CLI entry",
+        files: ["src/cli.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(filePath, {
+        type: "pattern",
+        name: "db-access",
+        description: "Database access layer",
+        files: ["src/db/index.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const allRecords = await readExpertiseFile(filePath);
+      const filtered = filterByContext(allRecords, ["src/cli.ts"]);
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertise("cli", filtered, lastUpdated);
+      const output = formatPrimeOutput([section]);
+
+      expect(output).toContain("Use ESM imports");
+      expect(output).toContain("cli-entry");
+      expect(output).not.toContain("db-access");
+    });
+
+    it("context filtering skips empty domains", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["cli", "database"] },
+        tmpDir,
+      );
+      const cliPath = getExpertisePath("cli", tmpDir);
+      const dbPath = getExpertisePath("database", tmpDir);
+      await createExpertiseFile(cliPath);
+      await createExpertiseFile(dbPath);
+
+      await appendRecord(cliPath, {
+        type: "pattern",
+        name: "cli-entry",
+        description: "CLI entry",
+        files: ["src/cli.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+      await appendRecord(dbPath, {
+        type: "pattern",
+        name: "db-schema",
+        description: "DB schema",
+        files: ["src/db/schema.ts"],
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const changedFiles = ["src/cli.ts"];
+      const sections: string[] = [];
+
+      for (const domain of ["cli", "database"]) {
+        const filePath = getExpertisePath(domain, tmpDir);
+        const allRecords = await readExpertiseFile(filePath);
+        const filtered = filterByContext(allRecords, changedFiles);
+        if (filtered.length === 0) continue;
+        const lastUpdated = await getFileModTime(filePath);
+        sections.push(formatDomainExpertise(domain, filtered, lastUpdated));
+      }
+
+      const output = formatPrimeOutput(sections);
+      expect(output).toContain("## cli");
+      expect(output).not.toContain("## database");
+    });
+  });
+
+  describe("record links in prime output", () => {
+    it("shows relates_to in markdown format", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "failure",
+        description: "ESM import broke",
+        resolution: "Use default import workaround",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+        relates_to: ["mx-abc123"],
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertise("testing", records, lastUpdated);
+      expect(output).toContain("[relates to: mx-abc123]");
+    });
+
+    it("shows supersedes in markdown format", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "convention",
+        content: "New convention",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+        supersedes: ["mx-def456"],
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertise("testing", records, lastUpdated);
+      expect(output).toContain("[supersedes: mx-def456]");
+    });
+
+    it("shows both links together", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "pattern",
+        name: "esm-import",
+        description: "ESM import pattern",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+        relates_to: ["mx-aaa111"],
+        supersedes: ["mx-bbb222"],
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertise("testing", records, lastUpdated);
+      expect(output).toContain("relates to: mx-aaa111");
+      expect(output).toContain("supersedes: mx-bbb222");
+    });
+
+    it("shows links in compact format", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "decision",
+        title: "Use Vitest",
+        rationale: "Better ESM support",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+        relates_to: ["mx-abc123"],
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertiseCompact("testing", records, lastUpdated);
+      expect(output).toContain("[relates to: mx-abc123]");
+    });
+
+    it("shows links in XML format", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "failure",
+        description: "Test failure",
+        resolution: "Fix it",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+        relates_to: ["mx-abc123"],
+        supersedes: ["mx-def456"],
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertiseXml("testing", records, lastUpdated);
+      expect(output).toContain("<relates_to>mx-abc123</relates_to>");
+      expect(output).toContain("<supersedes>mx-def456</supersedes>");
+    });
+
+    it("shows links in plain text format", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "convention",
+        content: "Use strict mode",
+        classification: "foundational",
+        recorded_at: new Date().toISOString(),
+        supersedes: ["mx-old111"],
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertisePlain("testing", records, lastUpdated);
+      expect(output).toContain("[supersedes: mx-old111]");
+    });
+
+    it("omits link brackets when no links present", async () => {
+      await writeConfig({ ...DEFAULT_CONFIG, domains: ["testing"] }, tmpDir);
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+      await appendRecord(filePath, {
+        type: "convention",
+        content: "No links here",
+        classification: "tactical",
+        recorded_at: new Date().toISOString(),
+      });
+
+      const records = await readExpertiseFile(filePath);
+      const lastUpdated = await getFileModTime(filePath);
+      const output = formatDomainExpertise("testing", records, lastUpdated);
+      expect(output).not.toContain("[relates to:");
+      expect(output).not.toContain("[supersedes:");
     });
   });
 });

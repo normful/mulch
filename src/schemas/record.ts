@@ -10,10 +10,13 @@ export interface Evidence {
 }
 
 interface BaseRecord {
+  id?: string;
   classification: Classification;
   recorded_at: string;
   evidence?: Evidence;
   tags?: string[];
+  relates_to?: string[];
+  supersedes?: string[];
 }
 
 export interface ConventionRecord extends BaseRecord {

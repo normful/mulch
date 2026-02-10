@@ -353,4 +353,116 @@ describe("record command", () => {
     expect(validate({ type: "reference", name: "r", description: "d", ...base })).toBe(true);
     expect(validate({ type: "guide", name: "g", description: "d", ...base })).toBe(true);
   });
+
+  it("record with relates_to validates against schema", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "failure",
+      description: "Import error with ESM",
+      resolution: "Use .js extension",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+      relates_to: ["mx-abc123"],
+    };
+
+    expect(validate(record)).toBe(true);
+  });
+
+  it("record with supersedes validates against schema", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "convention",
+      content: "Use Ajv default import pattern",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+      supersedes: ["mx-def456"],
+    };
+
+    expect(validate(record)).toBe(true);
+  });
+
+  it("record with both relates_to and supersedes validates", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "pattern",
+      name: "esm-import",
+      description: "ESM import pattern for Ajv",
+      classification: "foundational",
+      recorded_at: new Date().toISOString(),
+      relates_to: ["mx-aaa111"],
+      supersedes: ["mx-bbb222"],
+    };
+
+    expect(validate(record)).toBe(true);
+  });
+
+  it("relates_to with invalid ID format fails validation", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "convention",
+      content: "test",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+      relates_to: ["not-a-valid-id"],
+    };
+
+    expect(validate(record)).toBe(false);
+  });
+
+  it("links with all record types validate", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+    const links = { relates_to: ["mx-abc123"], supersedes: ["mx-def456"] };
+    const base = { classification: "tactical", recorded_at: new Date().toISOString(), ...links };
+
+    expect(validate({ type: "convention", content: "test", ...base })).toBe(true);
+    expect(validate({ type: "pattern", name: "p", description: "d", ...base })).toBe(true);
+    expect(validate({ type: "failure", description: "d", resolution: "r", ...base })).toBe(true);
+    expect(validate({ type: "decision", title: "t", rationale: "r", ...base })).toBe(true);
+    expect(validate({ type: "reference", name: "r", description: "d", ...base })).toBe(true);
+    expect(validate({ type: "guide", name: "g", description: "d", ...base })).toBe(true);
+  });
+
+  it("record with links is stored and read back correctly", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record: ExpertiseRecord = {
+      type: "failure",
+      description: "ESM import broke",
+      resolution: "Use default import workaround",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+      relates_to: ["mx-abc123"],
+      supersedes: ["mx-def456"],
+    };
+    await appendRecord(filePath, record);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    expect(records[0].relates_to).toEqual(["mx-abc123"]);
+    expect(records[0].supersedes).toEqual(["mx-def456"]);
+  });
+
+  it("record without links still validates (backward compat)", () => {
+    const ajv = new Ajv();
+    const validate = ajv.compile(recordSchema);
+
+    const record = {
+      type: "convention",
+      content: "No links here",
+      classification: "tactical",
+      recorded_at: new Date().toISOString(),
+    };
+
+    expect(validate(record)).toBe(true);
+  });
 });

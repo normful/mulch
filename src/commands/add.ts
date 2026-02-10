@@ -3,6 +3,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { getMulchDir, readConfig, writeConfig, getExpertisePath } from "../utils/config.js";
 import { createExpertiseFile } from "../utils/expertise.js";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 export function registerAddCommand(program: Command): void {
   program
@@ -10,12 +11,17 @@ export function registerAddCommand(program: Command): void {
     .argument("<domain>", "expertise domain to add")
     .description("Add a new expertise domain")
     .action(async (domain: string) => {
+      const jsonMode = program.opts().json === true;
       const mulchDir = getMulchDir();
 
       if (!existsSync(mulchDir)) {
-        console.error(
-          chalk.red("No .mulch/ directory found. Run `mulch init` first."),
-        );
+        if (jsonMode) {
+          outputJsonError("add", "No .mulch/ directory found. Run `mulch init` first.");
+        } else {
+          console.error(
+            chalk.red("No .mulch/ directory found. Run `mulch init` first."),
+          );
+        }
         process.exitCode = 1;
         return;
       }
@@ -23,9 +29,13 @@ export function registerAddCommand(program: Command): void {
       const config = await readConfig();
 
       if (config.domains.includes(domain)) {
-        console.error(
-          chalk.red(`Domain "${domain}" already exists.`),
-        );
+        if (jsonMode) {
+          outputJsonError("add", `Domain "${domain}" already exists.`);
+        } else {
+          console.error(
+            chalk.red(`Domain "${domain}" already exists.`),
+          );
+        }
         process.exitCode = 1;
         return;
       }
@@ -36,6 +46,10 @@ export function registerAddCommand(program: Command): void {
       config.domains.push(domain);
       await writeConfig(config);
 
-      console.log(chalk.green(`Added domain "${domain}".`));
+      if (jsonMode) {
+        outputJson({ success: true, command: "add", domain });
+      } else {
+        console.log(chalk.green(`Added domain "${domain}".`));
+      }
     });
 }

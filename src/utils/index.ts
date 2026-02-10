@@ -15,10 +15,25 @@ export {
   getFileModTime,
   countRecords,
   filterByType,
+  generateRecordId,
 } from "./expertise.js";
 
 export {
   formatDomainExpertise,
   formatPrimeOutput,
   formatStatusOutput,
+  formatTimeAgo,
+  getRecordSummary,
 } from "./format.js";
+
+export {
+  outputJson,
+  outputJsonError,
+} from "./json-output.js";
+
+export {
+  isGitRepo,
+  getChangedFiles,
+  fileMatchesAny,
+  filterByContext,
+} from "./git.js";

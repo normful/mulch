@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 import { Command } from "commander";
 import chalk from "chalk";
 import { getMulchDir } from "../utils/config.js";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 /** Supported provider names. */
 const SUPPORTED_PROVIDERS = [
@@ -564,20 +565,30 @@ export function registerSetupCommand(program: Command): void {
     .option("--remove", "remove provider integration")
     .option("--hooks", "install a pre-commit git hook running mulch validate")
     .action(async (provider: string | undefined, options: { check?: boolean; remove?: boolean; hooks?: boolean }) => {
+      const jsonMode = program.opts().json === true;
+
       // Verify .mulch/ exists
       const mulchDir = getMulchDir();
       if (!existsSync(mulchDir)) {
-        console.error(
-          chalk.red("Error: No .mulch/ directory found. Run `mulch init` first."),
-        );
+        if (jsonMode) {
+          outputJsonError("setup", "No .mulch/ directory found. Run `mulch init` first.");
+        } else {
+          console.error(
+            chalk.red("Error: No .mulch/ directory found. Run `mulch init` first."),
+          );
+        }
         process.exitCode = 1;
         return;
       }
 
       if (!provider && !options.hooks) {
-        console.error(
-          chalk.red("Error: specify a provider or use --hooks."),
-        );
+        if (jsonMode) {
+          outputJsonError("setup", "Specify a provider or use --hooks.");
+        } else {
+          console.error(
+            chalk.red("Error: specify a provider or use --hooks."),
+          );
+        }
         process.exitCode = 1;
         return;
       }
@@ -586,6 +597,7 @@ export function registerSetupCommand(program: Command): void {
       if (options.hooks) {
         const cwd = process.cwd();
         let hookResult: RecipeResult;
+        const action = options.check ? "check" : options.remove ? "remove" : "install";
         if (options.check) {
           hookResult = await checkGitHook(cwd);
         } else if (options.remove) {
@@ -594,10 +606,21 @@ export function registerSetupCommand(program: Command): void {
           hookResult = await installGitHook(cwd);
         }
 
-        if (hookResult.success) {
+        if (jsonMode) {
+          outputJson({
+            success: hookResult.success,
+            command: "setup",
+            target: "hooks",
+            action,
+            message: hookResult.message,
+          });
+        } else if (hookResult.success) {
           console.log(chalk.green(`\u2714 ${hookResult.message}`));
         } else {
           console.error(chalk.red(`\u2716 ${hookResult.message}`));
+        }
+
+        if (!hookResult.success) {
           process.exitCode = 1;
         }
 
@@ -609,47 +632,52 @@ export function registerSetupCommand(program: Command): void {
       if (!provider) return;
 
       if (!isProvider(provider)) {
-        console.error(
-          chalk.red(`Error: unknown provider "${provider}".`),
-        );
-        console.error(
-          chalk.red(`Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`),
-        );
+        if (jsonMode) {
+          outputJsonError("setup", `Unknown provider "${provider}". Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`);
+        } else {
+          console.error(
+            chalk.red(`Error: unknown provider "${provider}".`),
+          );
+          console.error(
+            chalk.red(`Supported providers: ${SUPPORTED_PROVIDERS.join(", ")}`),
+          );
+        }
         process.exitCode = 1;
         return;
       }
 
       {
         const recipe = recipes[provider];
+        const action = options.check ? "check" : options.remove ? "remove" : "install";
+        let result: RecipeResult;
 
         if (options.check) {
-          const result = await recipe.check(process.cwd());
-          if (result.success) {
-            console.log(chalk.green(`\u2714 ${result.message}`));
-          } else {
-            console.log(chalk.yellow(`\u2716 ${result.message}`));
-            process.exitCode = 1;
-          }
-          return;
+          result = await recipe.check(process.cwd());
+        } else if (options.remove) {
+          result = await recipe.remove(process.cwd());
+        } else {
+          result = await recipe.install(process.cwd());
         }
 
-        if (options.remove) {
-          const result = await recipe.remove(process.cwd());
-          if (result.success) {
-            console.log(chalk.green(`\u2714 ${result.message}`));
-          } else {
-            console.error(chalk.red(`Error: ${result.message}`));
-            process.exitCode = 1;
-          }
-          return;
-        }
-
-        // Default: install
-        const result = await recipe.install(process.cwd());
-        if (result.success) {
+        if (jsonMode) {
+          outputJson({
+            success: result.success,
+            command: "setup",
+            provider,
+            action,
+            message: result.message,
+          });
+        } else if (result.success) {
           console.log(chalk.green(`\u2714 ${result.message}`));
         } else {
-          console.error(chalk.red(`Error: ${result.message}`));
+          if (options.check) {
+            console.log(chalk.yellow(`\u2716 ${result.message}`));
+          } else {
+            console.error(chalk.red(`Error: ${result.message}`));
+          }
+        }
+
+        if (!result.success) {
           process.exitCode = 1;
         }
       }

@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import chalk from "chalk";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 const SNIPPET_DEFAULT = `## Project Expertise (Mulch)
 
@@ -111,6 +112,7 @@ export async function runOnboard(options: {
   stdout?: boolean;
   provider?: string;
   cwd?: string;
+  jsonMode?: boolean;
 }): Promise<void> {
   const cwd = options.cwd ?? process.cwd();
   const snippet = getSnippet(options.provider);
@@ -127,9 +129,18 @@ export async function runOnboard(options: {
   if (await fileExists(targetPath)) {
     const existing = await readFile(targetPath, "utf-8");
     if (existing.includes("## Project Expertise (Mulch)")) {
-      console.log(
-        chalk.yellow(`Mulch snippet already exists in ${targetFileName}. No changes made.`),
-      );
+      if (options.jsonMode) {
+        outputJson({
+          success: true,
+          command: "onboard",
+          file: targetFileName,
+          action: "already_present",
+        });
+      } else {
+        console.log(
+          chalk.yellow(`Mulch snippet already exists in ${targetFileName}. No changes made.`),
+        );
+      }
       return;
     }
     // Append to existing file
@@ -139,7 +150,16 @@ export async function runOnboard(options: {
     await writeFile(targetPath, snippet, "utf-8");
   }
 
-  console.log(chalk.green(`Mulch onboarding snippet written to ${targetFileName}`));
+  if (options.jsonMode) {
+    outputJson({
+      success: true,
+      command: "onboard",
+      file: targetFileName,
+      action: await fileExists(targetPath) ? "appended" : "created",
+    });
+  } else {
+    console.log(chalk.green(`Mulch onboarding snippet written to ${targetFileName}`));
+  }
 }
 
 export function registerOnboardCommand(program: Command): void {
@@ -154,10 +174,15 @@ export function registerOnboardCommand(program: Command): void {
       "customize snippet for a specific provider (e.g. claude)",
     )
     .action(async (options: { stdout?: boolean; provider?: string }) => {
+      const jsonMode = program.opts().json === true;
       try {
-        await runOnboard(options);
+        await runOnboard({ ...options, jsonMode });
       } catch (err) {
-        console.error(`Error: ${(err as Error).message}`);
+        if (jsonMode) {
+          outputJsonError("onboard", (err as Error).message);
+        } else {
+          console.error(`Error: ${(err as Error).message}`);
+        }
         process.exitCode = 1;
       }
     });

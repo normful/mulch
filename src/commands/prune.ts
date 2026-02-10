@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { readConfig, getExpertisePath } from "../utils/config.js";
 import { readExpertiseFile, writeExpertiseFile } from "../utils/expertise.js";
 import type { ExpertiseRecord, Classification } from "../schemas/record.js";
+import { outputJson } from "../utils/json-output.js";
 
 interface PruneResult {
   domain: string;
@@ -11,7 +12,7 @@ interface PruneResult {
   after: number;
 }
 
-function isStale(
+export function isStale(
   record: ExpertiseRecord,
   now: Date,
   shelfLife: { tactical: number; observational: number },
@@ -44,6 +45,7 @@ export function registerPruneCommand(program: Command): void {
     .description("Remove outdated or low-value expertise records")
     .option("--dry-run", "Show what would be pruned without removing", false)
     .action(async (options: { dryRun: boolean }) => {
+      const jsonMode = program.opts().json === true;
       const config = await readConfig();
       const now = new Date();
       const shelfLife = config.classification_defaults.shelf_life;
@@ -82,6 +84,17 @@ export function registerPruneCommand(program: Command): void {
             await writeExpertiseFile(filePath, kept);
           }
         }
+      }
+
+      if (jsonMode) {
+        outputJson({
+          success: true,
+          command: "prune",
+          dryRun: options.dryRun,
+          totalPruned,
+          results,
+        });
+        return;
       }
 
       if (totalPruned === 0) {

@@ -3,6 +3,7 @@ import { readConfig, getExpertisePath } from "../utils/config.js";
 import { readExpertiseFile, getFileModTime, filterByType } from "../utils/expertise.js";
 import { searchRecords } from "../utils/expertise.js";
 import { formatDomainExpertise } from "../utils/format.js";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 export function registerSearchCommand(program: Command): void {
   program
@@ -26,9 +27,14 @@ export function registerSearchCommand(program: Command): void {
         query: string | undefined,
         options: { domain?: string; type?: string; tag?: string },
       ) => {
+        const jsonMode = program.opts().json === true;
         try {
           if (!query && !options.type && !options.domain && !options.tag) {
-            console.error("Error: Provide a search query or use --type, --domain, or --tag to filter.");
+            if (jsonMode) {
+              outputJsonError("search", "Provide a search query or use --type, --domain, or --tag to filter.");
+            } else {
+              console.error("Error: Provide a search query or use --type, --domain, or --tag to filter.");
+            }
             process.exitCode = 1;
             return;
           }
@@ -39,9 +45,13 @@ export function registerSearchCommand(program: Command): void {
 
           if (options.domain) {
             if (!config.domains.includes(options.domain)) {
-              console.error(
-                `Error: Domain "${options.domain}" not found in config. Available domains: ${config.domains.join(", ")}`,
-              );
+              if (jsonMode) {
+                outputJsonError("search", `Domain "${options.domain}" not found in config. Available domains: ${config.domains.join(", ")}`);
+              } else {
+                console.error(
+                  `Error: Domain "${options.domain}" not found in config. Available domains: ${config.domains.join(", ")}`,
+                );
+              }
               process.exitCode = 1;
               return;
             }
@@ -50,48 +60,82 @@ export function registerSearchCommand(program: Command): void {
             domainsToSearch = config.domains;
           }
 
-          const sections: string[] = [];
           let totalMatches = 0;
 
-          for (const domain of domainsToSearch) {
-            const filePath = getExpertisePath(domain);
-            let records = await readExpertiseFile(filePath);
-            const lastUpdated = await getFileModTime(filePath);
-
-            if (options.type) {
-              records = filterByType(records, options.type);
+          if (jsonMode) {
+            const result: Array<{ domain: string; matches: unknown[] }> = [];
+            for (const domain of domainsToSearch) {
+              const filePath = getExpertisePath(domain);
+              let records = await readExpertiseFile(filePath);
+              if (options.type) {
+                records = filterByType(records, options.type);
+              }
+              if (options.tag) {
+                const tagLower = options.tag.toLowerCase();
+                records = records.filter((r) =>
+                  r.tags?.some((t) => t.toLowerCase() === tagLower),
+                );
+              }
+              const matches = query ? searchRecords(records, query) : records;
+              if (matches.length > 0) {
+                totalMatches += matches.length;
+                result.push({ domain, matches });
+              }
             }
-
-            if (options.tag) {
-              const tagLower = options.tag.toLowerCase();
-              records = records.filter((r) =>
-                r.tags?.some((t) => t.toLowerCase() === tagLower),
-              );
-            }
-
-            const matches = query ? searchRecords(records, query) : records;
-            if (matches.length > 0) {
-              totalMatches += matches.length;
-              sections.push(
-                formatDomainExpertise(domain, matches, lastUpdated),
-              );
-            }
-          }
-
-          const label = query ? `matching "${query}"` : "matching filters";
-          if (sections.length === 0) {
-            console.log(`No records ${label} found.`);
+            outputJson({
+              success: true,
+              command: "search",
+              query: query ?? null,
+              total: totalMatches,
+              domains: result,
+            });
           } else {
-            console.log(sections.join("\n\n"));
-            console.log(`\n${totalMatches} match${totalMatches === 1 ? "" : "es"} found.`);
+            const sections: string[] = [];
+            for (const domain of domainsToSearch) {
+              const filePath = getExpertisePath(domain);
+              let records = await readExpertiseFile(filePath);
+              const lastUpdated = await getFileModTime(filePath);
+              if (options.type) {
+                records = filterByType(records, options.type);
+              }
+              if (options.tag) {
+                const tagLower = options.tag.toLowerCase();
+                records = records.filter((r) =>
+                  r.tags?.some((t) => t.toLowerCase() === tagLower),
+                );
+              }
+              const matches = query ? searchRecords(records, query) : records;
+              if (matches.length > 0) {
+                totalMatches += matches.length;
+                sections.push(
+                  formatDomainExpertise(domain, matches, lastUpdated),
+                );
+              }
+            }
+
+            const label = query ? `matching "${query}"` : "matching filters";
+            if (sections.length === 0) {
+              console.log(`No records ${label} found.`);
+            } else {
+              console.log(sections.join("\n\n"));
+              console.log(`\n${totalMatches} match${totalMatches === 1 ? "" : "es"} found.`);
+            }
           }
         } catch (err) {
           if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-            console.error(
-              "Error: No .mulch/ directory found. Run `mulch init` first.",
-            );
+            if (jsonMode) {
+              outputJsonError("search", "No .mulch/ directory found. Run `mulch init` first.");
+            } else {
+              console.error(
+                "Error: No .mulch/ directory found. Run `mulch init` first.",
+              );
+            }
           } else {
-            console.error(`Error: ${(err as Error).message}`);
+            if (jsonMode) {
+              outputJsonError("search", (err as Error).message);
+            } else {
+              console.error(`Error: ${(err as Error).message}`);
+            }
           }
           process.exitCode = 1;
         }

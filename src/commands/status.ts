@@ -4,18 +4,24 @@ import chalk from "chalk";
 import { getMulchDir, readConfig, getExpertisePath } from "../utils/config.js";
 import { readExpertiseFile, countRecords, getFileModTime } from "../utils/expertise.js";
 import { formatStatusOutput } from "../utils/format.js";
+import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 export function registerStatusCommand(program: Command): void {
   program
     .command("status")
     .description("Show status of expertise records")
     .action(async () => {
+      const jsonMode = program.opts().json === true;
       const mulchDir = getMulchDir();
 
       if (!existsSync(mulchDir)) {
-        console.error(
-          chalk.red("No .mulch/ directory found. Run `mulch init` first."),
-        );
+        if (jsonMode) {
+          outputJsonError("status", "No .mulch/ directory found. Run `mulch init` first.");
+        } else {
+          console.error(
+            chalk.red("No .mulch/ directory found. Run `mulch init` first."),
+          );
+        }
         process.exitCode = 1;
         return;
       }
@@ -35,7 +41,20 @@ export function registerStatusCommand(program: Command): void {
         }),
       );
 
-      const output = formatStatusOutput(domainStats, config.governance);
-      console.log(output);
+      if (jsonMode) {
+        outputJson({
+          success: true,
+          command: "status",
+          domains: domainStats.map((s) => ({
+            domain: s.domain,
+            count: s.count,
+            lastUpdated: s.lastUpdated?.toISOString() ?? null,
+          })),
+          governance: config.governance,
+        });
+      } else {
+        const output = formatStatusOutput(domainStats, config.governance);
+        console.log(output);
+      }
     });
 }

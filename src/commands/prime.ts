@@ -15,14 +15,17 @@ import {
   formatMcpOutput,
 } from "../utils/format.js";
 import type { McpDomain, PrimeFormat } from "../utils/format.js";
+import { outputJsonError } from "../utils/json-output.js";
+import { isGitRepo, getChangedFiles, filterByContext } from "../utils/git.js";
 
 interface PrimeOptions {
   full?: boolean;
-  compact?: boolean;
+  verbose?: boolean;
   mcp?: boolean;
   format?: PrimeFormat;
   export?: string;
   domain?: string[];
+  context?: boolean;
 }
 
 export function registerPrimeCommand(program: Command): void {
@@ -31,7 +34,7 @@ export function registerPrimeCommand(program: Command): void {
     .description("Generate a priming prompt from expertise records")
     .argument("[domains...]", "optional domain(s) to scope output to")
     .option("--full", "include full record details (classification, evidence)")
-    .option("--compact", "one-liner per record, no section headers")
+    .option("-v, --verbose", "full output with section headers and recording instructions")
     .option("--mcp", "output in MCP-compatible JSON format")
     .option("--domain <domains...>", "domain(s) to include")
     .addOption(
@@ -39,8 +42,10 @@ export function registerPrimeCommand(program: Command): void {
         .choices(["markdown", "xml", "plain"])
         .default("markdown"),
     )
+    .option("--context", "filter records to only those relevant to changed files")
     .option("--export <path>", "export output to a file")
     .action(async (domainsArg: string[], options: PrimeOptions) => {
+      const jsonMode = program.opts().json === true;
       try {
         const config = await readConfig();
         const format = options.format ?? "markdown";
@@ -50,9 +55,13 @@ export function registerPrimeCommand(program: Command): void {
 
         for (const d of unique) {
           if (!config.domains.includes(d)) {
-            console.error(
-              `Error: Domain "${d}" not found in config. Available domains: ${config.domains.join(", ")}`,
-            );
+            if (jsonMode) {
+              outputJsonError("prime", `Domain "${d}" not found in config. Available domains: ${config.domains.join(", ")}`);
+            } else {
+              console.error(
+                `Error: Domain "${d}" not found in config. Available domains: ${config.domains.join(", ")}`,
+              );
+            }
             process.exitCode = 1;
             return;
           }
@@ -62,28 +71,59 @@ export function registerPrimeCommand(program: Command): void {
           ? unique
           : config.domains;
 
+        // Resolve changed files for --context filtering
+        let changedFiles: string[] | undefined;
+        if (options.context) {
+          const cwd = process.cwd();
+          if (!isGitRepo(cwd)) {
+            const msg = "Not in a git repository. --context requires git.";
+            if (jsonMode) {
+              outputJsonError("prime", msg);
+            } else {
+              console.error(`Error: ${msg}`);
+            }
+            process.exitCode = 1;
+            return;
+          }
+          changedFiles = getChangedFiles(cwd, "HEAD~1");
+          if (changedFiles.length === 0) {
+            if (jsonMode) {
+              outputJsonError("prime", "No changed files found. Nothing to filter by.");
+            } else {
+              console.log("No changed files found. Nothing to filter by.");
+            }
+            return;
+          }
+        }
+
         let output: string;
 
-        if (options.mcp) {
+        if (options.mcp || jsonMode) {
+          // --json and --mcp produce the same structured output
           const domains: McpDomain[] = [];
           for (const domain of targetDomains) {
             const filePath = getExpertisePath(domain);
-            const records = await readExpertiseFile(filePath);
-            domains.push({ domain, entry_count: records.length, records });
+            let records = await readExpertiseFile(filePath);
+            if (changedFiles) {
+              records = filterByContext(records, changedFiles);
+            }
+            if (!changedFiles || records.length > 0) {
+              domains.push({ domain, entry_count: records.length, records });
+            }
           }
           output = formatMcpOutput(domains);
         } else {
           const domainSections: string[] = [];
           for (const domain of targetDomains) {
             const filePath = getExpertisePath(domain);
-            const records = await readExpertiseFile(filePath);
+            let records = await readExpertiseFile(filePath);
+            if (changedFiles) {
+              records = filterByContext(records, changedFiles);
+              if (records.length === 0) continue;
+            }
             const lastUpdated = await getFileModTime(filePath);
 
-            if (options.compact) {
-              domainSections.push(
-                formatDomainExpertiseCompact(domain, records, lastUpdated),
-              );
-            } else {
+            if (options.verbose || format !== "markdown") {
               switch (format) {
                 case "xml":
                   domainSections.push(
@@ -103,12 +143,14 @@ export function registerPrimeCommand(program: Command): void {
                   );
                   break;
               }
+            } else {
+              domainSections.push(
+                formatDomainExpertiseCompact(domain, records, lastUpdated),
+              );
             }
           }
 
-          if (options.compact) {
-            output = formatPrimeOutputCompact(domainSections);
-          } else {
+          if (options.verbose || format !== "markdown") {
             switch (format) {
               case "xml":
                 output = formatPrimeOutputXml(domainSections);
@@ -120,20 +162,32 @@ export function registerPrimeCommand(program: Command): void {
                 output = formatPrimeOutput(domainSections);
                 break;
             }
+          } else {
+            output = formatPrimeOutputCompact(domainSections);
           }
         }
 
         if (options.export) {
           await writeFile(options.export, output + "\n", "utf-8");
-          console.log(chalk.green(`Exported to ${options.export}`));
+          if (!jsonMode) {
+            console.log(chalk.green(`Exported to ${options.export}`));
+          }
         } else {
           console.log(output);
         }
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-          console.error("Error: No .mulch/ directory found. Run `mulch init` first.");
+          if (jsonMode) {
+            outputJsonError("prime", "No .mulch/ directory found. Run `mulch init` first.");
+          } else {
+            console.error("Error: No .mulch/ directory found. Run `mulch init` first.");
+          }
         } else {
-          console.error(`Error: ${(err as Error).message}`);
+          if (jsonMode) {
+            outputJsonError("prime", (err as Error).message);
+          } else {
+            console.error(`Error: ${(err as Error).message}`);
+          }
         }
         process.exitCode = 1;
       }

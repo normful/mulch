@@ -1,4 +1,5 @@
 import { readFile, appendFile, writeFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import type { ExpertiseRecord } from "../schemas/record.js";
 
 export async function readExpertiseFile(
@@ -19,10 +20,38 @@ export async function readExpertiseFile(
   return records;
 }
 
+export function generateRecordId(record: ExpertiseRecord): string {
+  let key: string;
+  switch (record.type) {
+    case "convention":
+      key = `convention:${record.content}`;
+      break;
+    case "pattern":
+      key = `pattern:${record.name}`;
+      break;
+    case "failure":
+      key = `failure:${record.description}`;
+      break;
+    case "decision":
+      key = `decision:${record.title}`;
+      break;
+    case "reference":
+      key = `reference:${record.name}`;
+      break;
+    case "guide":
+      key = `guide:${record.name}`;
+      break;
+  }
+  return `mx-${createHash("sha256").update(key).digest("hex").slice(0, 6)}`;
+}
+
 export async function appendRecord(
   filePath: string,
   record: ExpertiseRecord,
 ): Promise<void> {
+  if (!record.id) {
+    record.id = generateRecordId(record);
+  }
   const line = JSON.stringify(record) + "\n";
   await appendFile(filePath, line, "utf-8");
 }
@@ -44,6 +73,11 @@ export async function writeExpertiseFile(
   filePath: string,
   records: ExpertiseRecord[],
 ): Promise<void> {
+  for (const r of records) {
+    if (!r.id) {
+      r.id = generateRecordId(r);
+    }
+  }
   const content = records.map((r) => JSON.stringify(r)).join("\n") + (records.length > 0 ? "\n" : "");
   await writeFile(filePath, content, "utf-8");
 }
