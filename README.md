@@ -69,6 +69,8 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 | `pattern` | name, description | Named patterns with optional file references |
 | `failure` | description, resolution | What went wrong and how to avoid it |
 | `decision` | title, rationale | Architectural decisions and their reasoning |
+| `reference` | name, description | Key files, endpoints, or resources worth remembering |
+| `guide` | name, description | Step-by-step procedures for recurring tasks |
 
 All records support optional `--classification` (foundational / tactical / observational) and evidence flags (`--evidence-commit`, `--evidence-issue`, `--evidence-file`).
 
