@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { runOnboard } from "../../src/commands/onboard.js";
+import { MARKER_START, MARKER_END } from "../../src/utils/markers.js";
 
 describe("onboard command", () => {
   let tmpDir: string;
@@ -16,6 +17,8 @@ describe("onboard command", () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  // ── Basic creation ────────────────────────────────────────
+
   it("creates AGENTS.md by default when no agent file exists", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
@@ -27,6 +30,8 @@ describe("onboard command", () => {
       expect(content).toContain("mulch prime");
       expect(content).toContain("mulch record");
       expect(content).toContain("mulch status");
+      expect(content).toContain(MARKER_START);
+      expect(content).toContain(MARKER_END);
     } finally {
       consoleSpy.mockRestore();
     }
@@ -39,7 +44,6 @@ describe("onboard command", () => {
       await runOnboard({ cwd: tmpDir });
 
       expect(existsSync(join(tmpDir, "CLAUDE.md"))).toBe(true);
-      // Should not create AGENTS.md
       expect(existsSync(join(tmpDir, "AGENTS.md"))).toBe(false);
 
       const content = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
@@ -81,6 +85,8 @@ describe("onboard command", () => {
     }
   });
 
+  // ── Stdout mode ───────────────────────────────────────────
+
   it("prints to stdout with --stdout flag", async () => {
     const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     try {
@@ -89,13 +95,27 @@ describe("onboard command", () => {
       expect(stdoutSpy).toHaveBeenCalledWith(
         expect.stringContaining("## Project Expertise (Mulch)"),
       );
-      // Should not create any files
       expect(existsSync(join(tmpDir, "AGENTS.md"))).toBe(false);
       expect(existsSync(join(tmpDir, "CLAUDE.md"))).toBe(false);
     } finally {
       stdoutSpy.mockRestore();
     }
   });
+
+  it("stdout output includes markers", async () => {
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      await runOnboard({ stdout: true, cwd: tmpDir });
+
+      const output = (stdoutSpy.mock.calls[0] as string[])[0];
+      expect(output).toContain(MARKER_START);
+      expect(output).toContain(MARKER_END);
+    } finally {
+      stdoutSpy.mockRestore();
+    }
+  });
+
+  // ── Provider snippets ─────────────────────────────────────
 
   it("generates claude-specific snippet with --provider claude", async () => {
     const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -122,6 +142,8 @@ describe("onboard command", () => {
       stdoutSpy.mockRestore();
     }
   });
+
+  // ── Snippet content ───────────────────────────────────────
 
   it("snippet includes before-you-finish checklist", async () => {
     const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -161,5 +183,375 @@ describe("onboard command", () => {
     } finally {
       stdoutSpy.mockRestore();
     }
+  });
+
+  // ── Marker-based update ───────────────────────────────────
+
+  describe("marker-based update", () => {
+    it("updates an existing marker-wrapped snippet when content changes", async () => {
+      const oldSnippet = `${MARKER_START}\n## Project Expertise (Mulch)\n\nOld content here.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), `# My Project\n\n${oldSnippet}\n`, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(content).toContain("mulch prime");
+        expect(content).toContain(MARKER_START);
+        expect(content).toContain(MARKER_END);
+        expect(content).not.toContain("Old content here.");
+        expect(content).toContain("# My Project");
+        // Only one marker pair
+        const markerMatches = content.match(/<!-- mulch:start -->/g);
+        expect(markerMatches).toHaveLength(1);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("reports up_to_date when snippet matches current version", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir }); // creates with current content
+        await runOnboard({ cwd: tmpDir }); // should report up_to_date
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("up to date"),
+        );
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("reports updated action in JSON mode", async () => {
+      const oldSnippet = `${MARKER_START}\nOld content.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), oldSnippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, jsonMode: true });
+
+        const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
+        expect(output.action).toBe("updated");
+        expect(output.file).toBe("CLAUDE.md");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("preserves surrounding content when updating", async () => {
+      const oldSnippet = `${MARKER_START}\nOld.\n${MARKER_END}`;
+      const fileContent = `# Header\n\nSome intro text.\n\n${oldSnippet}\n\n## Other Section\n\nMore content.\n`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), fileContent, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(content).toContain("# Header");
+        expect(content).toContain("Some intro text.");
+        expect(content).toContain("## Other Section");
+        expect(content).toContain("More content.");
+        expect(content).toContain("mulch prime");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+  });
+
+  // ── Legacy migration ──────────────────────────────────────
+
+  describe("legacy migration", () => {
+    const LEGACY_SNIPPET = `## Project Expertise (Mulch)
+
+This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
+
+**At the start of every session**, run:
+\`\`\`bash
+mulch prime
+\`\`\`
+
+This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+
+**Before completing your task**, review your work for insights worth preserving — conventions discovered,
+patterns applied, failures encountered, or decisions made — and record them:
+\`\`\`bash
+mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
+\`\`\`
+
+Run \`mulch status\` to check domain health and entry counts.
+Run \`mulch --help\` for full usage.
+
+### Before You Finish
+
+1. Store insights from this work session:
+   \`\`\`bash
+   mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
+   \`\`\`
+2. Validate and commit:
+   \`\`\`bash
+   mulch validate && git add .mulch/ && git commit -m "mulch: record learnings"
+   \`\`\`
+`;
+
+    it("migrates a legacy snippet to marker-wrapped version", async () => {
+      const fileContent = `# My Project\n\n${LEGACY_SNIPPET}`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), fileContent, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(content).toContain(MARKER_START);
+        expect(content).toContain(MARKER_END);
+        expect(content).toContain("# My Project");
+        // Only one header
+        const headers = content.match(/## Project Expertise \(Mulch\)/g);
+        expect(headers).toHaveLength(1);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("reports migrated action in JSON mode", async () => {
+      await writeFile(join(tmpDir, "CLAUDE.md"), `# Project\n\n${LEGACY_SNIPPET}`, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, jsonMode: true });
+
+        const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
+        expect(output.action).toBe("migrated");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("handles edited legacy snippet (falls back to header-to-EOF)", async () => {
+      const editedLegacy = `# My Project\n\n## Project Expertise (Mulch)\n\nSome custom text the user wrote.\n`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), editedLegacy, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(content).toContain(MARKER_START);
+        expect(content).toContain("# My Project");
+        expect(content).not.toContain("Some custom text");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("preserves content before legacy snippet", async () => {
+      const fileContent = `# My Project\n\nImportant setup info.\n\n${LEGACY_SNIPPET}`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), fileContent, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(content).toContain("# My Project");
+        expect(content).toContain("Important setup info.");
+        expect(content).toContain(MARKER_START);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+  });
+
+  // ── Multi-location detection ──────────────────────────────
+
+  describe("multi-location detection", () => {
+    it("detects snippet in .claude/CLAUDE.md and updates there", async () => {
+      await mkdir(join(tmpDir, ".claude"), { recursive: true });
+      const oldSnippet = `${MARKER_START}\nOld.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, ".claude", "CLAUDE.md"), oldSnippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, ".claude", "CLAUDE.md"), "utf-8");
+        expect(content).toContain("mulch prime");
+        // Should NOT create root files
+        expect(existsSync(join(tmpDir, "CLAUDE.md"))).toBe(false);
+        expect(existsSync(join(tmpDir, "AGENTS.md"))).toBe(false);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("prefers root CLAUDE.md over .claude/CLAUDE.md when both have snippets", async () => {
+      const snippet = `${MARKER_START}\nOld.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "CLAUDE.md"), `# Root\n\n${snippet}\n`, "utf-8");
+      await mkdir(join(tmpDir, ".claude"), { recursive: true });
+      await writeFile(join(tmpDir, ".claude", "CLAUDE.md"), snippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        // Root should be updated
+        const rootContent = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(rootContent).toContain("mulch prime");
+        // Should warn about duplicate
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("also found in"),
+        );
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("does not create duplicates when snippet exists in AGENTS.md", async () => {
+      // CLAUDE.md exists (no snippet), AGENTS.md has the snippet
+      await writeFile(join(tmpDir, "CLAUDE.md"), "# Project\n", "utf-8");
+      const snippet = `${MARKER_START}\nOld.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "AGENTS.md"), snippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        // Should update AGENTS.md, not add to CLAUDE.md
+        const agentsContent = await readFile(join(tmpDir, "AGENTS.md"), "utf-8");
+        expect(agentsContent).toContain("mulch prime");
+        const claudeContent = await readFile(join(tmpDir, "CLAUDE.md"), "utf-8");
+        expect(claudeContent).not.toContain("mulch");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("detects legacy snippet in .claude/CLAUDE.md", async () => {
+      await mkdir(join(tmpDir, ".claude"), { recursive: true });
+      await writeFile(
+        join(tmpDir, ".claude", "CLAUDE.md"),
+        "# Config\n\n## Project Expertise (Mulch)\n\nOld text.\n",
+        "utf-8",
+      );
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir });
+
+        const content = await readFile(join(tmpDir, ".claude", "CLAUDE.md"), "utf-8");
+        expect(content).toContain(MARKER_START);
+        expect(content).toContain("mulch prime");
+        expect(existsSync(join(tmpDir, "CLAUDE.md"))).toBe(false);
+        expect(existsSync(join(tmpDir, "AGENTS.md"))).toBe(false);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+  });
+
+  // ── --check flag ──────────────────────────────────────────
+
+  describe("--check flag", () => {
+    it("reports not installed when no snippet exists", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, check: true });
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("not installed"),
+        );
+        // Should not create any files
+        expect(existsSync(join(tmpDir, "AGENTS.md"))).toBe(false);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("reports up to date when current version is installed", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir }); // install first
+        await runOnboard({ cwd: tmpDir, check: true });
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("up to date"),
+        );
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("reports outdated when an old snippet is present", async () => {
+      const oldSnippet = `${MARKER_START}\nOld content.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "AGENTS.md"), oldSnippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, check: true });
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("outdated"),
+        );
+        // Should NOT modify the file
+        const content = await readFile(join(tmpDir, "AGENTS.md"), "utf-8");
+        expect(content).toContain("Old content.");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("reports legacy when snippet has no markers", async () => {
+      await writeFile(
+        join(tmpDir, "CLAUDE.md"),
+        "## Project Expertise (Mulch)\n\nOld text.\n",
+        "utf-8",
+      );
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, check: true });
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining("legacy"),
+        );
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("--check does not modify files", async () => {
+      const oldSnippet = `${MARKER_START}\nOld.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "AGENTS.md"), oldSnippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, check: true });
+
+        const content = await readFile(join(tmpDir, "AGENTS.md"), "utf-8");
+        expect(content).toBe(oldSnippet);
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    it("--check works in JSON mode", async () => {
+      const oldSnippet = `${MARKER_START}\nOld.\n${MARKER_END}`;
+      await writeFile(join(tmpDir, "AGENTS.md"), oldSnippet, "utf-8");
+
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await runOnboard({ cwd: tmpDir, check: true, jsonMode: true });
+
+        const output = JSON.parse((consoleSpy.mock.calls[0] as string[])[0]);
+        expect(output.command).toBe("onboard");
+        expect(output.action).toBe("outdated");
+        expect(output.file).toBe("AGENTS.md");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
   });
 });

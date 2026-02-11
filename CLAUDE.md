@@ -62,6 +62,7 @@ Run `bd prime` for workflow context.
 - `bd close <id>` - Complete work
 - `bd sync` - Sync with git (run at session end)
 
+<!-- mulch:start -->
 ## Project Expertise (Mulch)
 
 This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
@@ -92,3 +93,4 @@ Run `mulch --help` for full usage.
    ```bash
    mulch validate && git add .mulch/ && git commit -m "mulch: record learnings"
    ```
+<!-- mulch:end -->

@@ -37,3 +37,12 @@ export {
   fileMatchesAny,
   filterByContext,
 } from "./git.js";
+
+export {
+  MARKER_START,
+  MARKER_END,
+  hasMarkerSection,
+  replaceMarkerSection,
+  removeMarkerSection,
+  wrapInMarkers,
+} from "./markers.js";

@@ -5,6 +5,12 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { getMulchDir } from "../utils/config.js";
 import { outputJson, outputJsonError } from "../utils/json-output.js";
+import {
+  MARKER_START,
+  MARKER_END,
+  hasMarkerSection,
+  removeMarkerSection,
+} from "../utils/markers.js";
 
 /** Supported provider names. */
 const SUPPORTED_PROVIDERS = [
@@ -356,10 +362,7 @@ function codexAgentsPath(cwd: string): string {
   return join(cwd, "AGENTS.md");
 }
 
-const CODEX_SECTION_MARKER_START = "<!-- mulch:start -->";
-const CODEX_SECTION_MARKER_END = "<!-- mulch:end -->";
-
-const CODEX_SECTION = `${CODEX_SECTION_MARKER_START}
+const CODEX_SECTION = `${MARKER_START}
 ## Mulch Expertise
 
 At the start of every session, run \`mulch prime\` to load project expertise.
@@ -374,23 +377,7 @@ mulch record <domain> --type <convention|pattern|failure|decision|reference|guid
 \`\`\`
 
 Run \`mulch --help\` for full usage.
-${CODEX_SECTION_MARKER_END}`;
-
-function hasMulchSection(content: string): boolean {
-  return content.includes(CODEX_SECTION_MARKER_START);
-}
-
-function removeMulchSection(content: string): string {
-  const startIdx = content.indexOf(CODEX_SECTION_MARKER_START);
-  const endIdx = content.indexOf(CODEX_SECTION_MARKER_END);
-  if (startIdx === -1 || endIdx === -1) return content;
-
-  const before = content.substring(0, startIdx);
-  const after = content.substring(endIdx + CODEX_SECTION_MARKER_END.length);
-
-  // Clean up extra newlines left behind
-  return (before + after).replace(/\n{3,}/g, "\n\n").trim() + "\n";
-}
+${MARKER_END}`;
 
 const codexRecipe: ProviderRecipe = {
   async install(cwd) {
@@ -399,7 +386,7 @@ const codexRecipe: ProviderRecipe = {
 
     if (existsSync(agentsPath)) {
       content = await readFile(agentsPath, "utf-8");
-      if (hasMulchSection(content)) {
+      if (hasMarkerSection(content)) {
         return { success: true, message: "AGENTS.md already contains mulch section." };
       }
     }
@@ -419,7 +406,7 @@ const codexRecipe: ProviderRecipe = {
       return { success: false, message: "AGENTS.md not found." };
     }
     const content = await readFile(agentsPath, "utf-8");
-    if (!hasMulchSection(content)) {
+    if (!hasMarkerSection(content)) {
       return { success: false, message: "AGENTS.md exists but has no mulch section." };
     }
     return { success: true, message: "AGENTS.md contains mulch section." };
@@ -431,10 +418,10 @@ const codexRecipe: ProviderRecipe = {
       return { success: true, message: "AGENTS.md not found; nothing to remove." };
     }
     const content = await readFile(agentsPath, "utf-8");
-    if (!hasMulchSection(content)) {
+    if (!hasMarkerSection(content)) {
       return { success: true, message: "No mulch section in AGENTS.md; nothing to remove." };
     }
-    const cleaned = removeMulchSection(content);
+    const cleaned = removeMarkerSection(content);
     await writeFile(agentsPath, cleaned, "utf-8");
     return { success: true, message: "Removed mulch section from AGENTS.md." };
   },
@@ -448,9 +435,6 @@ interface MarkdownRecipeConfig {
 }
 
 function createMarkdownRecipe(config: MarkdownRecipeConfig): ProviderRecipe {
-  const MARKER_START = "<!-- mulch:start -->";
-  const MARKER_END = "<!-- mulch:end -->";
-
   const section = `${MARKER_START}
 ## Mulch Expertise
 
@@ -475,7 +459,7 @@ ${MARKER_END}`;
 
       if (existsSync(filePath)) {
         content = await readFile(filePath, "utf-8");
-        if (content.includes(MARKER_START)) {
+        if (hasMarkerSection(content)) {
           return { success: true, message: `${config.fileName} already contains mulch section.` };
         }
       }
@@ -496,7 +480,7 @@ ${MARKER_END}`;
         return { success: false, message: `${config.fileName} not found.` };
       }
       const content = await readFile(filePath, "utf-8");
-      if (!content.includes(MARKER_START)) {
+      if (!hasMarkerSection(content)) {
         return { success: false, message: `${config.fileName} exists but has no mulch section.` };
       }
       return { success: true, message: `${config.fileName} contains mulch section.` };
@@ -508,16 +492,11 @@ ${MARKER_END}`;
         return { success: true, message: `${config.fileName} not found; nothing to remove.` };
       }
       const content = await readFile(filePath, "utf-8");
-      if (!content.includes(MARKER_START)) {
+      if (!hasMarkerSection(content)) {
         return { success: true, message: `No mulch section in ${config.fileName}; nothing to remove.` };
       }
 
-      const startIdx = content.indexOf(MARKER_START);
-      const endIdx = content.indexOf(MARKER_END);
-      const before = content.substring(0, startIdx);
-      const after = content.substring(endIdx + MARKER_END.length);
-      const cleaned = (before + after).replace(/\n{3,}/g, "\n\n").trim() + "\n";
-
+      const cleaned = removeMarkerSection(content);
       await writeFile(filePath, cleaned, "utf-8");
       return { success: true, message: `Removed mulch section from ${config.fileName}.` };
     },
