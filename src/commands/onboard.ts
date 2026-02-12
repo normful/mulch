@@ -30,6 +30,7 @@ mulch record <domain> --type <convention|pattern|failure|decision|reference|guid
 
 Run \`mulch status\` to check domain health and entry counts.
 Run \`mulch --help\` for full usage.
+Mulch write commands use file locking and atomic writes — multiple agents can safely record to the same domain concurrently.
 
 ### Before You Finish
 

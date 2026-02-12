@@ -33,6 +33,13 @@ Three classifications with shelf lives for pruning: `foundational` (permanent), 
 
 Each command lives in `src/commands/<name>.ts` and exports a `register<Name>Command(program)` function. All commands are registered in `src/cli.ts`. Entry point is `src/cli.ts`.
 
+### Concurrency Safety
+
+- **Advisory file locking**: `withFileLock(filePath, fn)` in `src/utils/lock.ts` — uses `O_CREAT|O_EXCL` lock files with 50ms retry, 5s timeout, and 30s stale lock detection
+- **Atomic writes**: `writeExpertiseFile()` in `src/utils/expertise.ts` writes to a temp file then renames, preventing partial/corrupt JSONL
+- **Write commands** (record, edit, delete, compact, prune, doctor --fix) use both mechanisms
+- **Read-only commands** (prime, query, search, status, validate) need no locking
+
 ### Provider Integration (setup command)
 
 `src/commands/setup.ts` contains provider-specific "recipes" (claude, cursor, codex, gemini, windsurf, aider). Each recipe implements idempotent `install()`, `check()`, and `remove()` operations.
@@ -82,6 +89,7 @@ mulch record <domain> --type <convention|pattern|failure|decision|reference|guid
 
 Run `mulch status` to check domain health and entry counts.
 Run `mulch --help` for full usage.
+Mulch write commands use file locking and atomic writes — multiple agents can safely record to the same domain concurrently.
 
 ### Before You Finish
 

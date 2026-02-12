@@ -120,6 +120,58 @@ $ mulch query database
 - **Append-only JSONL** — Zero merge conflicts, trivial schema validation.
 - **Storage ≠ Delivery** — JSONL on disk, optimized markdown/XML for agents.
 
+## Concurrency & Multi-Agent Safety
+
+Mulch is designed for multi-agent workflows where several agents record expertise concurrently against the same repository.
+
+### How it works
+
+- **Advisory file locking** — Write commands acquire a `.lock` file (O_CREAT|O_EXCL) before modifying any JSONL file. Retries every 50ms for up to 5 seconds; stale locks (>30s) are auto-removed.
+- **Atomic writes** — All JSONL mutations write to a temp file first, then atomically rename into place. A crash mid-write never corrupts the expertise file.
+- **Git merge strategy** — `mulch init` sets `merge=union` in `.gitattributes` so parallel branches append-merge JSONL lines without conflicts.
+
+### Command safety
+
+| Safety level | Commands | Notes |
+|---|---|---|
+| **Fully safe** (read-only) | `prime`, `query`, `search`, `status`, `validate`, `learn`, `ready` | No file writes. Any number of agents, any time. |
+| **Safe** (locked writes) | `record`, `edit`, `delete`, `compact`, `prune`, `doctor` | Acquire per-file lock before writing. Multiple agents can target the same domain — the lock serializes access automatically. |
+| **Serialize** (setup ops) | `init`, `add`, `onboard`, `setup` | Modify config or external files (CLAUDE.md, git hooks). Run once during project setup, not during parallel agent work. |
+
+### Swarm patterns
+
+**Same-worktree agents** (e.g., Claude Code team, parallel CI jobs):
+
+```bash
+# Every agent can safely do this in parallel:
+mulch prime                                    # Read context
+mulch record api --type pattern --name "..." --description "..."  # Locked write
+mulch search "error handling"                  # Read-only
+```
+
+Locks ensure correctness automatically. If two agents record to the same domain at the same instant, one waits (up to 5s) for the other to finish.
+
+**Multi-worktree / branch-per-agent**:
+
+Each agent works in its own git worktree. On merge, `merge=union` combines all JSONL lines. Run `mulch doctor --fix` after merge to deduplicate if needed.
+
+**Maintenance during swarm work**:
+
+```bash
+mulch compact --analyze          # Safe: read-only scan
+mulch prune --dry-run            # Safe: read-only scan
+mulch doctor                     # Safe: read-only health check
+```
+
+The `--apply`, default (non-dry-run), and `--fix` variants acquire locks and are also safe to run alongside recording agents.
+
+### Edge cases
+
+- **Lock timeout**: If a lock cannot be acquired within 5 seconds, the command fails with an error. Retry or check for stuck processes.
+- **Stale locks**: Locks older than 30 seconds are automatically cleaned up (e.g., after a crash).
+- **`mulch sync`**: Uses git's own locking for commits. Multiple agents syncing on the same branch will contend on git's ref lock — coordinate sync timing or use per-agent branches.
+- **`prime --export`**: Multiple agents exporting to the same file path will race. Use unique filenames per agent.
+
 ## License
 
 MIT
