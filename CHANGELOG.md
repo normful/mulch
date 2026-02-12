@@ -1,0 +1,91 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
+
+- Auto-tag git releases in publish workflow on version bump
+
+## [0.2.4] - 2026-02-12
+
+### Added
+
+- Advisory file locking (`withFileLock`) for safe concurrent writes across multiple agents
+- Atomic JSONL writes via temp file + rename to prevent partial/corrupt files
+
+### Fixed
+
+- CI workflow now runs `build` before `test` so integration tests find `dist/cli.js`
+
+## [0.2.3] - 2026-02-11
+
+### Added
+
+- `mulch update` command — checks npm registry for newer versions and installs them (`--check` for dry run)
+- Version check integrated into `mulch doctor`
+- `mulch onboard` now uses `<!-- mulch:start -->` / `<!-- mulch:end -->` markers for idempotent updates
+
+### Changed
+
+- Record addressing switched from 1-based JSONL line indices to stable `mx-` prefix IDs
+
+## [0.2.2] - 2026-02-11
+
+### Changed
+
+- Standardized on ID-based record addressing (replacing line-index addressing in `edit` and `delete`)
+
+## [0.2.1] - 2026-02-10
+
+### Changed
+
+- Synced all user-facing messaging across onboard snippets, setup recipes, CLAUDE.md, and README
+- Agent prompts now ask agents to "review your work for insights" before completing tasks
+
+## [0.2.0] - 2026-02-10
+
+### Added
+
+- `reference` and `guide` record types
+- Multi-domain scoping for `mulch prime` (variadic args and `--domain` flag)
+- `mulch search` command with case-insensitive substring matching, `--domain` and `--type` filters
+- `mulch compact` command with `--analyze` mode for finding compaction candidates
+- Record deduplication in `mulch record` (upsert named types, skip exact-match unnamed types, `--force` override)
+- Optional `tags` field on all record types
+- Compact output as default for `mulch prime` (`--full` for verbose)
+- GitHub Actions CI workflow (lint, build, test)
+- GitHub Actions publish workflow (auto-publish to npm on version bump)
+
+### Fixed
+
+- Flaky prune boundary test — `Math.floor` age-in-days so boundary records land on exact whole days
+
+## [0.1.0] - 2026-02-10
+
+### Added
+
+- Initial release
+- Core commands: `init`, `add`, `record`, `edit`, `query`, `prime`, `status`, `validate`
+- Infrastructure commands: `setup`, `onboard`, `prune`, `doctor`
+- JSONL storage in `.mulch/expertise/<domain>.jsonl`
+- YAML config at `.mulch/mulch.config.yaml`
+- Six record types: `convention`, `pattern`, `failure`, `decision`, `reference`, `guide`
+- Three classifications with shelf lives: `foundational` (permanent), `tactical` (14 days), `observational` (30 days)
+- Provider setup recipes for Claude, Cursor, Codex, Gemini, Windsurf, and Aider
+- Git merge strategy (`merge=union`) for JSONL via `.gitattributes`
+- Schema validation with Ajv
+- Prime output formats: `xml`, `plain`, `markdown`, `--mcp` (JSON)
+- Context-aware prime via `--context` (filters by git changed files)
+
+[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/jayminwest/mulch/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/jayminwest/mulch/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/jayminwest/mulch/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/jayminwest/mulch/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/jayminwest/mulch/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/jayminwest/mulch/releases/tag/v0.1.0
