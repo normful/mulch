@@ -193,7 +193,7 @@ export function registerPrimeCommand(program: Command): void {
           for (const { domain, records } of domainRecordsToFormat) {
             const lastUpdated = modTimes.get(domain) ?? null;
 
-            if (options.verbose || format !== "markdown") {
+            if (options.verbose || options.full || format !== "markdown") {
               switch (format) {
                 case "xml":
                   domainSections.push(
@@ -220,7 +220,7 @@ export function registerPrimeCommand(program: Command): void {
             }
           }
 
-          if (options.verbose || format !== "markdown") {
+          if (options.verbose || options.full || format !== "markdown") {
             switch (format) {
               case "xml":
                 output = formatPrimeOutputXml(domainSections);
