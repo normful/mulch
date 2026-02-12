@@ -521,6 +521,54 @@ export function formatMcpOutput(
   return JSON.stringify({ type: "expertise", domains }, null, 2);
 }
 
+export function getSessionEndReminder(format: PrimeFormat): string {
+  switch (format) {
+    case "xml":
+      return [
+        "<session_close_protocol priority=\"critical\">",
+        "  <instruction>Before saying done or complete, you MUST run this checklist:</instruction>",
+        "  <checklist>",
+        "    <step>Review your work for insights worth preserving (conventions, patterns, failures, decisions)</step>",
+        "    <step>mulch record &lt;domain&gt; --type &lt;type&gt; --description &quot;...&quot;</step>",
+        "    <step>mulch validate</step>",
+        "    <step>git add .mulch/ &amp;&amp; git commit -m &quot;mulch: record learnings&quot;</step>",
+        "  </checklist>",
+        "  <warning>NEVER skip this. Unrecorded learnings are lost for the next session.</warning>",
+        "</session_close_protocol>",
+      ].join("\n");
+    case "plain":
+      return [
+        "=== SESSION CLOSE PROTOCOL (CRITICAL) ===",
+        "",
+        "Before saying \"done\" or \"complete\", you MUST run this checklist:",
+        "",
+        "[ ] 1. Review your work for insights worth preserving",
+        "       (conventions, patterns, failures, decisions)",
+        "[ ] 2. mulch record <domain> --type <type> --description \"...\"",
+        "[ ] 3. mulch validate",
+        "[ ] 4. git add .mulch/ && git commit -m \"mulch: record learnings\"",
+        "",
+        "NEVER skip this. Unrecorded learnings are lost for the next session.",
+      ].join("\n");
+    default:
+      return [
+        "# \u{1F6A8} SESSION CLOSE PROTOCOL \u{1F6A8}",
+        "",
+        "**CRITICAL**: Before saying \"done\" or \"complete\", you MUST run this checklist:",
+        "",
+        "```",
+        "[ ] 1. Review your work for insights worth preserving",
+        "       (conventions, patterns, failures, decisions)",
+        "[ ] 2. mulch record <domain> --type <type> --description \"...\"",
+        "[ ] 3. mulch validate",
+        "[ ] 4. git add .mulch/ && git commit -m \"mulch: record learnings\"",
+        "```",
+        "",
+        "**NEVER skip this.** Unrecorded learnings are lost for the next session.",
+      ].join("\n");
+  }
+}
+
 export function formatStatusOutput(
   domainStats: Array<{
     domain: string;

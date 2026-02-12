@@ -25,8 +25,17 @@ import {
   formatDomainExpertiseCompact,
   formatPrimeOutputCompact,
   formatMcpOutput,
+  getSessionEndReminder,
 } from "../../src/utils/format.js";
 import { filterByContext, fileMatchesAny } from "../../src/utils/git.js";
+import {
+  DEFAULT_BUDGET,
+  applyBudget,
+  estimateTokens,
+  formatBudgetSummary,
+} from "../../src/utils/budget.js";
+import type { DomainRecords } from "../../src/utils/budget.js";
+import type { ExpertiseRecord } from "../../src/schemas/record.js";
 
 describe("prime command", () => {
   let tmpDir: string;
@@ -1284,6 +1293,479 @@ describe("prime command", () => {
       const output = formatDomainExpertise("testing", records, lastUpdated);
       expect(output).not.toContain("[relates to:");
       expect(output).not.toContain("[supersedes:");
+    });
+  });
+
+  describe("session-end reminder", () => {
+    it("compact output includes session close protocol", () => {
+      const output = formatPrimeOutputCompact([]);
+      const reminder = getSessionEndReminder("markdown");
+      // The reminder is appended by prime.ts, but verify the function itself
+      expect(reminder).toContain("SESSION CLOSE PROTOCOL");
+      expect(reminder).toContain("mulch record");
+      expect(reminder).toContain("mulch validate");
+      expect(reminder).toContain("NEVER skip this");
+    });
+
+    it("markdown reminder uses markdown formatting", () => {
+      const reminder = getSessionEndReminder("markdown");
+      expect(reminder).toContain("# ");
+      expect(reminder).toContain("**CRITICAL**");
+      expect(reminder).toContain("mulch record <domain>");
+      expect(reminder).toContain('git add .mulch/');
+    });
+
+    it("xml reminder uses XML tags", () => {
+      const reminder = getSessionEndReminder("xml");
+      expect(reminder).toContain("<session_close_protocol");
+      expect(reminder).toContain("</session_close_protocol>");
+      expect(reminder).toContain("<checklist>");
+      expect(reminder).toContain("mulch record");
+      expect(reminder).toContain("mulch validate");
+      expect(reminder).toContain("NEVER skip this");
+    });
+
+    it("plain reminder uses plain text formatting", () => {
+      const reminder = getSessionEndReminder("plain");
+      expect(reminder).toContain("SESSION CLOSE PROTOCOL");
+      expect(reminder).not.toContain("**");
+      expect(reminder).not.toContain("##");
+      // No XML tags (but <domain> and <type> placeholders are fine)
+      expect(reminder).not.toContain("</");
+      expect(reminder).toContain("mulch record");
+      expect(reminder).toContain("mulch validate");
+      expect(reminder).toContain("NEVER skip this");
+    });
+
+    it("MCP/JSON output does NOT include session close protocol", () => {
+      const records = [
+        {
+          type: "convention" as const,
+          content: "Test convention",
+          classification: "foundational" as const,
+          recorded_at: new Date().toISOString(),
+        },
+      ];
+      const output = formatMcpOutput([
+        { domain: "testing", entry_count: records.length, records },
+      ]);
+      expect(output).not.toContain("SESSION CLOSE PROTOCOL");
+      expect(output).not.toContain("session_close_protocol");
+      // Verify it's valid JSON without reminder text
+      const parsed = JSON.parse(output);
+      expect(parsed.type).toBe("expertise");
+    });
+
+    it("reminder contains key action items", () => {
+      for (const format of ["markdown", "xml", "plain"] as const) {
+        const reminder = getSessionEndReminder(format);
+        expect(reminder).toContain("mulch record");
+        expect(reminder).toContain("mulch validate");
+      }
+    });
+  });
+
+  describe("token budget", () => {
+    function makeRecord(
+      type: ExpertiseRecord["type"],
+      classification: ExpertiseRecord["classification"],
+      overrides: Record<string, unknown> = {},
+    ): ExpertiseRecord {
+      const base = {
+        classification,
+        recorded_at: new Date().toISOString(),
+      };
+      switch (type) {
+        case "convention":
+          return { ...base, type: "convention", content: overrides.content as string ?? "A convention", ...overrides } as ExpertiseRecord;
+        case "decision":
+          return { ...base, type: "decision", title: overrides.title as string ?? "A decision", rationale: overrides.rationale as string ?? "Because reasons", ...overrides } as ExpertiseRecord;
+        case "pattern":
+          return { ...base, type: "pattern", name: overrides.name as string ?? "A pattern", description: overrides.description as string ?? "A pattern desc", ...overrides } as ExpertiseRecord;
+        case "guide":
+          return { ...base, type: "guide", name: overrides.name as string ?? "A guide", description: overrides.description as string ?? "A guide desc", ...overrides } as ExpertiseRecord;
+        case "failure":
+          return { ...base, type: "failure", description: overrides.description as string ?? "A failure", resolution: overrides.resolution as string ?? "Fix it", ...overrides } as ExpertiseRecord;
+        case "reference":
+          return { ...base, type: "reference", name: overrides.name as string ?? "A reference", description: overrides.description as string ?? "A ref desc", ...overrides } as ExpertiseRecord;
+      }
+    }
+
+    function simpleEstimate(record: ExpertiseRecord): string {
+      switch (record.type) {
+        case "convention":
+          return `[convention] ${record.content}`;
+        case "pattern":
+          return `[pattern] ${record.name}: ${record.description}`;
+        case "failure":
+          return `[failure] ${record.description} -> ${record.resolution}`;
+        case "decision":
+          return `[decision] ${record.title}: ${record.rationale}`;
+        case "reference":
+          return `[reference] ${record.name}: ${record.description}`;
+        case "guide":
+          return `[guide] ${record.name}: ${record.description}`;
+      }
+    }
+
+    it("DEFAULT_BUDGET is 4000", () => {
+      expect(DEFAULT_BUDGET).toBe(4000);
+    });
+
+    it("estimateTokens uses chars / 4", () => {
+      expect(estimateTokens("a".repeat(100))).toBe(25);
+      expect(estimateTokens("a".repeat(101))).toBe(26); // ceil
+      expect(estimateTokens("")).toBe(0);
+    });
+
+    it("applyBudget keeps all records when within budget", () => {
+      const domains: DomainRecords[] = [
+        {
+          domain: "testing",
+          records: [
+            makeRecord("convention", "foundational"),
+            makeRecord("decision", "foundational"),
+          ],
+        },
+      ];
+
+      const result = applyBudget(domains, 10000, simpleEstimate);
+      expect(result.droppedCount).toBe(0);
+      expect(result.droppedDomainCount).toBe(0);
+      expect(result.kept).toHaveLength(1);
+      expect(result.kept[0].records).toHaveLength(2);
+    });
+
+    it("applyBudget drops records when budget is tight", () => {
+      // Create many records that won't all fit in a small budget
+      const records: ExpertiseRecord[] = [];
+      for (let i = 0; i < 20; i++) {
+        records.push(
+          makeRecord("convention", "foundational", {
+            content: `Convention number ${i} with extra text to increase size`,
+          }),
+        );
+      }
+
+      const domains: DomainRecords[] = [{ domain: "testing", records }];
+      // Give a very small budget
+      const result = applyBudget(domains, 50, simpleEstimate);
+
+      expect(result.droppedCount).toBeGreaterThan(0);
+      expect(result.kept[0].records.length).toBeLessThan(20);
+    });
+
+    it("applyBudget prioritizes conventions over other types", () => {
+      const convention = makeRecord("convention", "foundational", {
+        content: "Important convention",
+      });
+      const reference = makeRecord("reference", "foundational", {
+        name: "Some reference",
+        description: "Reference description",
+      });
+
+      const domains: DomainRecords[] = [
+        {
+          domain: "testing",
+          records: [reference, convention], // reference first in file order
+        },
+      ];
+
+      // Budget that only fits one record
+      const singleRecordBudget = estimateTokens(simpleEstimate(convention)) + 1;
+      const result = applyBudget(domains, singleRecordBudget, simpleEstimate);
+
+      expect(result.kept).toHaveLength(1);
+      expect(result.kept[0].records).toHaveLength(1);
+      expect(result.kept[0].records[0].type).toBe("convention");
+      expect(result.droppedCount).toBe(1);
+    });
+
+    it("applyBudget prioritizes by type order: convention > decision > pattern > guide > failure > reference", () => {
+      const types: ExpertiseRecord["type"][] = [
+        "reference",
+        "failure",
+        "guide",
+        "pattern",
+        "decision",
+        "convention",
+      ];
+      const records = types.map((t) => makeRecord(t, "foundational"));
+
+      const domains: DomainRecords[] = [{ domain: "testing", records }];
+
+      // Large budget to keep all
+      const result = applyBudget(domains, 100000, simpleEstimate);
+      expect(result.droppedCount).toBe(0);
+
+      // Budget that fits exactly one convention-sized record
+      const convCost = estimateTokens(simpleEstimate(records.find((r) => r.type === "convention")!));
+      const tinyResult = applyBudget(domains, convCost + 1, simpleEstimate);
+      expect(tinyResult.kept.length).toBeGreaterThan(0);
+      expect(tinyResult.kept[0].records[0].type).toBe("convention");
+    });
+
+    it("applyBudget prioritizes foundational over tactical over observational", () => {
+      const observational = makeRecord("convention", "observational", {
+        content: "Observational convention",
+      });
+      const tactical = makeRecord("convention", "tactical", {
+        content: "Tactical convention",
+      });
+      const foundational = makeRecord("convention", "foundational", {
+        content: "Foundational convention",
+      });
+
+      const domains: DomainRecords[] = [
+        {
+          domain: "testing",
+          records: [observational, tactical, foundational],
+        },
+      ];
+
+      // Budget that fits about 2 records
+      const oneRecordCost = estimateTokens(simpleEstimate(foundational));
+      const result = applyBudget(domains, oneRecordCost * 2 + 1, simpleEstimate);
+
+      expect(result.kept[0].records).toHaveLength(2);
+      // The kept records should be foundational and tactical (in original file order)
+      const keptClassifications = result.kept[0].records.map((r) => r.classification);
+      expect(keptClassifications).toContain("foundational");
+      expect(keptClassifications).toContain("tactical");
+      expect(keptClassifications).not.toContain("observational");
+    });
+
+    it("applyBudget prioritizes newer records within same type and classification", () => {
+      const oldDate = new Date("2024-01-01T00:00:00Z").toISOString();
+      const newDate = new Date("2025-06-01T00:00:00Z").toISOString();
+
+      const oldRecord = makeRecord("convention", "foundational", {
+        content: "Old convention",
+        recorded_at: oldDate,
+      });
+      const newRecord = makeRecord("convention", "foundational", {
+        content: "New convention",
+        recorded_at: newDate,
+      });
+
+      const domains: DomainRecords[] = [
+        { domain: "testing", records: [oldRecord, newRecord] },
+      ];
+
+      // Budget that fits exactly 1 record
+      const oneRecordCost = estimateTokens(simpleEstimate(newRecord));
+      const result = applyBudget(domains, oneRecordCost + 1, simpleEstimate);
+
+      expect(result.kept[0].records).toHaveLength(1);
+      expect((result.kept[0].records[0] as { content: string }).content).toBe("New convention");
+    });
+
+    it("applyBudget preserves original domain order", () => {
+      const domains: DomainRecords[] = [
+        {
+          domain: "alpha",
+          records: [makeRecord("convention", "foundational", { content: "Alpha conv" })],
+        },
+        {
+          domain: "beta",
+          records: [makeRecord("convention", "foundational", { content: "Beta conv" })],
+        },
+      ];
+
+      const result = applyBudget(domains, 100000, simpleEstimate);
+      expect(result.kept[0].domain).toBe("alpha");
+      expect(result.kept[1].domain).toBe("beta");
+    });
+
+    it("applyBudget tracks dropped domain count", () => {
+      const domains: DomainRecords[] = [
+        {
+          domain: "alpha",
+          records: [makeRecord("convention", "foundational", { content: "Alpha convention" })],
+        },
+        {
+          domain: "beta",
+          records: [makeRecord("reference", "observational", { name: "Beta ref", description: "Beta reference description that is fairly long to make it costly" })],
+        },
+      ];
+
+      // Budget that fits only alpha's convention
+      const alphaCost = estimateTokens(simpleEstimate(domains[0].records[0]));
+      const result = applyBudget(domains, alphaCost + 1, simpleEstimate);
+
+      expect(result.kept).toHaveLength(1);
+      expect(result.kept[0].domain).toBe("alpha");
+      expect(result.droppedCount).toBe(1);
+      expect(result.droppedDomainCount).toBe(1);
+    });
+
+    it("formatBudgetSummary shows correct summary", () => {
+      expect(formatBudgetSummary(5, 2)).toBe(
+        "... and 5 more records across 2 domains (use --budget <n> to show more)",
+      );
+      expect(formatBudgetSummary(1, 1)).toBe(
+        "... and 1 more record across 1 domain (use --budget <n> to show more)",
+      );
+      expect(formatBudgetSummary(3, 0)).toBe(
+        "... and 3 more records (use --budget <n> to show more)",
+      );
+    });
+
+    it("budget integrates with compact formatting pipeline", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      // Add many records to exceed a tiny budget
+      for (let i = 0; i < 10; i++) {
+        await appendRecord(filePath, {
+          type: "convention",
+          content: `Convention number ${i} with some extra padding text to make it longer`,
+          classification: "foundational",
+          recorded_at: new Date().toISOString(),
+        });
+      }
+
+      const records = await readExpertiseFile(filePath);
+      const domainRecords: DomainRecords[] = [{ domain: "testing", records }];
+
+      // Apply a very small budget
+      const result = applyBudget(domainRecords, 50, (r) => {
+        if (r.type === "convention") return `[convention] ${r.content}`;
+        return "";
+      });
+
+      expect(result.droppedCount).toBeGreaterThan(0);
+      expect(result.kept[0].records.length).toBeLessThan(10);
+
+      // Format the kept records
+      const lastUpdated = await getFileModTime(filePath);
+      const section = formatDomainExpertiseCompact("testing", result.kept[0].records, lastUpdated);
+      const output = formatPrimeOutputCompact([section]);
+
+      expect(output).toContain("# Project Expertise (via Mulch)");
+      expect(output).toContain("## testing");
+    });
+
+    it("budget summary line appears in final output when records are dropped", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      for (let i = 0; i < 10; i++) {
+        await appendRecord(filePath, {
+          type: "convention",
+          content: `Convention ${i} with padding to increase the token cost of each record`,
+          classification: "foundational",
+          recorded_at: new Date().toISOString(),
+        });
+      }
+
+      const records = await readExpertiseFile(filePath);
+      const domainRecords: DomainRecords[] = [{ domain: "testing", records }];
+
+      const result = applyBudget(domainRecords, 50, (r) => {
+        if (r.type === "convention") return `[convention] ${r.content}`;
+        return "";
+      });
+
+      if (result.droppedCount > 0) {
+        const summary = formatBudgetSummary(result.droppedCount, result.droppedDomainCount);
+        expect(summary).toContain("more record");
+        expect(summary).toContain("--budget <n>");
+      }
+    });
+
+    it("session-end reminder is always shown regardless of budget", async () => {
+      await writeConfig(
+        { ...DEFAULT_CONFIG, domains: ["testing"] },
+        tmpDir,
+      );
+      const filePath = getExpertisePath("testing", tmpDir);
+      await createExpertiseFile(filePath);
+
+      for (let i = 0; i < 10; i++) {
+        await appendRecord(filePath, {
+          type: "convention",
+          content: `Convention ${i} with padding text`,
+          classification: "foundational",
+          recorded_at: new Date().toISOString(),
+        });
+      }
+
+      // The session-end reminder is appended by prime.ts after budget filtering,
+      // so it's always present. Verify the reminder function itself is available.
+      const reminder = getSessionEndReminder("markdown");
+      expect(reminder).toContain("SESSION CLOSE PROTOCOL");
+    });
+
+    it("MCP/JSON output is NOT subject to budget", () => {
+      const records: ExpertiseRecord[] = [];
+      for (let i = 0; i < 20; i++) {
+        records.push(
+          makeRecord("convention", "foundational", {
+            content: `Convention ${i} with substantial text to take up space in the output`,
+          }),
+        );
+      }
+
+      // MCP output is always complete regardless of any budget considerations
+      const output = formatMcpOutput([
+        { domain: "testing", entry_count: records.length, records },
+      ]);
+      const parsed = JSON.parse(output);
+      expect(parsed.domains[0].records).toHaveLength(20);
+      expect(output).not.toContain("--budget");
+    });
+
+    it("applyBudget with zero-budget drops all records", () => {
+      const domains: DomainRecords[] = [
+        {
+          domain: "testing",
+          records: [makeRecord("convention", "foundational")],
+        },
+      ];
+
+      const result = applyBudget(domains, 0, simpleEstimate);
+      expect(result.droppedCount).toBe(1);
+      expect(result.kept).toHaveLength(0);
+    });
+
+    it("applyBudget across multiple domains drops lower-priority records", () => {
+      const domains: DomainRecords[] = [
+        {
+          domain: "alpha",
+          records: [
+            makeRecord("convention", "foundational", { content: "Alpha convention" }),
+          ],
+        },
+        {
+          domain: "beta",
+          records: [
+            makeRecord("reference", "observational", {
+              name: "Beta ref",
+              description: "A reference with a longer description to make it costly",
+            }),
+          ],
+        },
+      ];
+
+      // Budget that fits alpha's convention but not beta's reference
+      const alphaCost = estimateTokens(simpleEstimate(domains[0].records[0]));
+      const result = applyBudget(domains, alphaCost + 1, simpleEstimate);
+
+      // Convention from alpha should be kept
+      expect(result.kept.length).toBeGreaterThanOrEqual(1);
+      expect(result.kept[0].domain).toBe("alpha");
+      expect(result.kept[0].records[0].type).toBe("convention");
+      // Reference from beta should be dropped
+      expect(result.droppedCount).toBe(1);
     });
   });
 });

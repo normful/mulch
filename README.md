@@ -67,7 +67,7 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 | `mulch edit <domain> <id>` | Edit an existing record by ID or 1-based index |
 | `mulch delete <domain> <id>` | Delete a record by ID or 1-based index |
 | `mulch query [domain]` | Query expertise (use `--all` for all domains) |
-| `mulch prime [domains...]` | Output AI-optimized expertise context (multi-domain, `--context`, `--format`, `--export`) |
+| `mulch prime [domains...]` | Output AI-optimized expertise context (`--budget`, `--no-limit`, `--context`, `--format`, `--export`) |
 | `mulch search [query]` | Search records across domains (`--domain`, `--type`, `--tag` filters) |
 | `mulch compact [domain]` | Analyze compaction candidates or apply a compaction (`--analyze`, `--apply`) |
 | `mulch status` | Show expertise freshness and counts |

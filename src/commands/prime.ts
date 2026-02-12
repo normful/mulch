@@ -13,10 +13,17 @@ import {
   formatDomainExpertiseCompact,
   formatPrimeOutputCompact,
   formatMcpOutput,
+  getSessionEndReminder,
 } from "../utils/format.js";
 import type { McpDomain, PrimeFormat } from "../utils/format.js";
 import { outputJsonError } from "../utils/json-output.js";
 import { isGitRepo, getChangedFiles, filterByContext } from "../utils/git.js";
+import {
+  DEFAULT_BUDGET,
+  applyBudget,
+  formatBudgetSummary,
+} from "../utils/budget.js";
+import type { DomainRecords } from "../utils/budget.js";
 
 interface PrimeOptions {
   full?: boolean;
@@ -26,6 +33,33 @@ interface PrimeOptions {
   export?: string;
   domain?: string[];
   context?: boolean;
+  budget?: string;
+  noLimit?: boolean;
+}
+
+/**
+ * Produce a rough text representation of a record for token estimation.
+ * Uses a simple format similar to compact lines.
+ */
+function estimateRecordText(record: import("../schemas/record.js").ExpertiseRecord): string {
+  switch (record.type) {
+    case "convention":
+      return `[convention] ${record.content}`;
+    case "pattern": {
+      const files = record.files && record.files.length > 0 ? ` (${record.files.join(", ")})` : "";
+      return `[pattern] ${record.name}: ${record.description}${files}`;
+    }
+    case "failure":
+      return `[failure] ${record.description} -> ${record.resolution}`;
+    case "decision":
+      return `[decision] ${record.title}: ${record.rationale}`;
+    case "reference": {
+      const refFiles = record.files && record.files.length > 0 ? `: ${record.files.join(", ")}` : `: ${record.description}`;
+      return `[reference] ${record.name}${refFiles}`;
+    }
+    case "guide":
+      return `[guide] ${record.name}: ${record.description}`;
+  }
 }
 
 export function registerPrimeCommand(program: Command): void {
@@ -44,6 +78,8 @@ export function registerPrimeCommand(program: Command): void {
     )
     .option("--context", "filter records to only those relevant to changed files")
     .option("--export <path>", "export output to a file")
+    .option("--budget <tokens>", `token budget for output (default: ${DEFAULT_BUDGET})`)
+    .option("--no-limit", "disable token budget limit")
     .action(async (domainsArg: string[], options: PrimeOptions) => {
       const jsonMode = program.opts().json === true;
       try {
@@ -96,10 +132,15 @@ export function registerPrimeCommand(program: Command): void {
           }
         }
 
+        // Determine budget settings
+        const isMachineOutput = options.mcp === true || jsonMode;
+        const budgetEnabled = !isMachineOutput && options.noLimit !== true;
+        const budget = options.budget ? parseInt(options.budget, 10) : DEFAULT_BUDGET;
+
         let output: string;
 
-        if (options.mcp || jsonMode) {
-          // --json and --mcp produce the same structured output
+        if (isMachineOutput) {
+          // --json and --mcp produce the same structured output — no budget
           const domains: McpDomain[] = [];
           for (const domain of targetDomains) {
             const filePath = getExpertisePath(domain);
@@ -113,7 +154,10 @@ export function registerPrimeCommand(program: Command): void {
           }
           output = formatMcpOutput(domains);
         } else {
-          const domainSections: string[] = [];
+          // Load all records per domain
+          const allDomainRecords: DomainRecords[] = [];
+          const modTimes = new Map<string, Date | null>();
+
           for (const domain of targetDomains) {
             const filePath = getExpertisePath(domain);
             let records = await readExpertiseFile(filePath);
@@ -121,7 +165,33 @@ export function registerPrimeCommand(program: Command): void {
               records = filterByContext(records, changedFiles);
               if (records.length === 0) continue;
             }
+            allDomainRecords.push({ domain, records });
             const lastUpdated = await getFileModTime(filePath);
+            modTimes.set(domain, lastUpdated);
+          }
+
+          // Apply budget filtering
+          let domainRecordsToFormat: DomainRecords[];
+          let droppedCount = 0;
+          let droppedDomainCount = 0;
+
+          if (budgetEnabled) {
+            const result = applyBudget(
+              allDomainRecords,
+              budget,
+              (record) => estimateRecordText(record),
+            );
+            domainRecordsToFormat = result.kept;
+            droppedCount = result.droppedCount;
+            droppedDomainCount = result.droppedDomainCount;
+          } else {
+            domainRecordsToFormat = allDomainRecords;
+          }
+
+          // Format domain sections
+          const domainSections: string[] = [];
+          for (const { domain, records } of domainRecordsToFormat) {
+            const lastUpdated = modTimes.get(domain) ?? null;
 
             if (options.verbose || format !== "markdown") {
               switch (format) {
@@ -165,6 +235,13 @@ export function registerPrimeCommand(program: Command): void {
           } else {
             output = formatPrimeOutputCompact(domainSections);
           }
+
+          // Append truncation summary before session reminder
+          if (droppedCount > 0) {
+            output += "\n\n" + formatBudgetSummary(droppedCount, droppedDomainCount);
+          }
+
+          output += "\n\n" + getSessionEndReminder(format);
         }
 
         if (options.export) {

@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Auto-tag git releases in publish workflow on version bump
 
+## [0.2.5] - 2026-02-12
+
+### Added
+
+- Session-end reminder section in `mulch prime` output — reminds agents to record learnings before completing tasks (all non-MCP formats)
+- Token budget for `mulch prime` — `--budget <tokens>` (default 4000) caps output size with smart record prioritization (conventions first, then decisions, patterns, guides, failures, references)
+- `--no-limit` flag to disable token budget
+
 ## [0.2.4] - 2026-02-12
 
 ### Added
@@ -82,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prime output formats: `xml`, `plain`, `markdown`, `--mcp` (JSON)
 - Context-aware prime via `--context` (filters by git changed files)
 
-[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/jayminwest/mulch/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jayminwest/mulch/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jayminwest/mulch/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jayminwest/mulch/compare/v0.2.1...v0.2.2
