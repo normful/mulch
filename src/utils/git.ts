@@ -1,9 +1,9 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { ExpertiseRecord } from "../schemas/record.js";
 
 export function isGitRepo(cwd: string): boolean {
   try {
-    execSync("git rev-parse --is-inside-work-tree", { cwd, stdio: "pipe" });
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd, stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -15,7 +15,7 @@ export function getChangedFiles(cwd: string, since: string): string[] {
 
   // Committed changes (since ref)
   try {
-    const committed = execSync(`git diff --name-only ${since}`, {
+    const committed = execFileSync("git", ["diff", "--name-only", since], {
       cwd,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -31,7 +31,7 @@ export function getChangedFiles(cwd: string, since: string): string[] {
 
   // Staged but uncommitted changes
   try {
-    const staged = execSync("git diff --name-only --cached", {
+    const staged = execFileSync("git", ["diff", "--name-only", "--cached"], {
       cwd,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -47,7 +47,7 @@ export function getChangedFiles(cwd: string, since: string): string[] {
 
   // Unstaged working tree changes
   try {
-    const unstaged = execSync("git diff --name-only", {
+    const unstaged = execFileSync("git", ["diff", "--name-only"], {
       cwd,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],

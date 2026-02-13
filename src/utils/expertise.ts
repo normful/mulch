@@ -1,5 +1,5 @@
 import { readFile, appendFile, writeFile, stat, rename, unlink } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { ExpertiseRecord } from "../schemas/record.js";
 
 export async function readExpertiseFile(
@@ -79,7 +79,7 @@ export async function writeExpertiseFile(
     }
   }
   const content = records.map((r) => JSON.stringify(r)).join("\n") + (records.length > 0 ? "\n" : "");
-  const tmpPath = `${filePath}.tmp.${process.pid}`;
+  const tmpPath = `${filePath}.tmp.${randomBytes(8).toString("hex")}`;
   await writeFile(tmpPath, content, "utf-8");
   try {
     await rename(tmpPath, filePath);

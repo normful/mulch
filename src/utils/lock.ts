@@ -1,4 +1,4 @@
-import { open, unlink, stat } from "node:fs/promises";
+import { open, unlink, lstat } from "node:fs/promises";
 import { constants } from "node:fs";
 
 const LOCK_STALE_MS = 30_000; // 30 seconds
@@ -58,7 +58,7 @@ async function acquireLock(lockPath: string): Promise<void> {
 
 async function isStaleLock(lockPath: string): Promise<boolean> {
   try {
-    const stats = await stat(lockPath);
+    const stats = await lstat(lockPath);
     return Date.now() - stats.mtimeMs > LOCK_STALE_MS;
   } catch {
     // Lock file disappeared between check — not stale, just gone

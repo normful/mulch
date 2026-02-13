@@ -47,10 +47,19 @@ export function getExpertiseDir(cwd: string = process.cwd()): string {
   return join(getMulchDir(cwd), EXPERTISE_DIR);
 }
 
+export function validateDomainName(domain: string): void {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(domain)) {
+    throw new Error(
+      `Invalid domain name: "${domain}". Only alphanumeric characters, hyphens, and underscores are allowed.`,
+    );
+  }
+}
+
 export function getExpertisePath(
   domain: string,
   cwd: string = process.cwd(),
 ): string {
+  validateDomainName(domain);
   return join(getExpertiseDir(cwd), `${domain}.jsonl`);
 }
 
