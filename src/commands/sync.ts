@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { Command } from "commander";
 import _Ajv from "ajv";
@@ -10,7 +10,7 @@ import { outputJson, outputJsonError } from "../utils/json-output.js";
 
 function isGitRepo(cwd: string): boolean {
   try {
-    execSync("git rev-parse --is-inside-work-tree", { cwd, stdio: "pipe" });
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd, stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -19,7 +19,7 @@ function isGitRepo(cwd: string): boolean {
 
 function gitHasChanges(cwd: string): boolean {
   try {
-    const status = execSync("git status --porcelain .mulch/", { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    const status = execFileSync("git", ["status", "--porcelain", ".mulch/"], { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
     return status.trim().length > 0;
   } catch {
     return false;
@@ -27,11 +27,11 @@ function gitHasChanges(cwd: string): boolean {
 }
 
 function gitAdd(cwd: string): void {
-  execSync("git add .mulch/", { cwd, stdio: "pipe" });
+  execFileSync("git", ["add", ".mulch/"], { cwd, stdio: "pipe" });
 }
 
 function gitCommit(cwd: string, message: string): string {
-  return execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+  return execFileSync("git", ["commit", "-m", message], { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
 }
 
 interface ValidateResult {
