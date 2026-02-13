@@ -1,5 +1,10 @@
 # Mulch — Let your agents grow 🌱
 
+[![npm version](https://img.shields.io/npm/v/mulch-cli)](https://www.npmjs.com/package/mulch-cli)
+[![CI](https://img.shields.io/github/actions/workflow/status/jayminwest/mulch/ci.yml?branch=main)](https://github.com/jayminwest/mulch/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![node](https://img.shields.io/node/v/mulch-cli)](https://nodejs.org)
+
 Structured expertise files that accumulate over time, live in git, work with any agent, and run locally with zero dependencies.
 
 Agents start every session from zero. The pattern your agent discovered yesterday is forgotten today. Mulch fixes this: agents call `mulch record` to write learnings, and `mulch query` to read them. Expertise compounds across sessions, domains, and teammates.
@@ -171,6 +176,12 @@ The `--apply`, default (non-dry-run), and `--fix` variants acquire locks and are
 - **Stale locks**: Locks older than 30 seconds are automatically cleaned up (e.g., after a crash).
 - **`mulch sync`**: Uses git's own locking for commits. Multiple agents syncing on the same branch will contend on git's ref lock — coordinate sync timing or use per-agent branches.
 - **`prime --export`**: Multiple agents exporting to the same file path will race. Use unique filenames per agent.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on setting up a development environment, coding conventions, and submitting pull requests.
+
+For security issues, see [SECURITY.md](SECURITY.md).
 
 ## License
 
