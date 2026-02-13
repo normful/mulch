@@ -7,9 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CONTRIBUTING.md with fork/branch workflow, ESM conventions, and test guidelines
+- SECURITY.md with private vulnerability reporting via GitHub Security Advisories
+- PR template and issue templates (bug report, feature request)
+- Dependabot config for npm and GitHub Actions dependency updates
+- FUNDING.yml for GitHub Sponsors
+- README badges (npm version, CI status, license, node version)
+
 ### Changed
 
 - Auto-tag git releases in publish workflow on version bump
+- Enabled auto-delete of merged PR branches
+- Required CI status checks on main branch protection
+
+### Fixed
+
+- `--full` flag being ignored in `prime` command
+
+### Security
+
+- Hardened against command injection, path traversal, symlink attacks, and temp file races (thanks @burakseyman)
 
 ## [0.2.5] - 2026-02-12
 
