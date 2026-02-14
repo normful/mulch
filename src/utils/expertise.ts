@@ -1,6 +1,6 @@
 import { readFile, appendFile, writeFile, stat, rename, unlink } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
-import type { ExpertiseRecord } from "../schemas/record.js";
+import type { ExpertiseRecord, RecordType, Classification } from "../schemas/record.js";
 
 export async function readExpertiseFile(
   filePath: string,
@@ -233,4 +233,111 @@ export function searchRecords(
     }
     return false;
   });
+}
+
+export interface DomainHealth {
+  governance_utilization: number;
+  stale_count: number;
+  type_distribution: Record<RecordType, number>;
+  classification_distribution: Record<Classification, number>;
+  oldest_timestamp: string | null;
+  newest_timestamp: string | null;
+}
+
+/**
+ * Check if a record is stale based on classification and shelf life.
+ */
+export function isRecordStale(
+  record: ExpertiseRecord,
+  now: Date,
+  shelfLife: { tactical: number; observational: number },
+): boolean {
+  const classification: Classification = record.classification;
+
+  if (classification === "foundational") {
+    return false;
+  }
+
+  const recordedAt = new Date(record.recorded_at);
+  const ageInDays = Math.floor(
+    (now.getTime() - recordedAt.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (classification === "tactical") {
+    return ageInDays > shelfLife.tactical;
+  }
+
+  if (classification === "observational") {
+    return ageInDays > shelfLife.observational;
+  }
+
+  return false;
+}
+
+/**
+ * Calculate comprehensive health metrics for a domain.
+ */
+export function calculateDomainHealth(
+  records: ExpertiseRecord[],
+  maxEntries: number,
+  shelfLife: { tactical: number; observational: number },
+): DomainHealth {
+  const now = new Date();
+
+  // Initialize distributions
+  const typeDistribution: Record<RecordType, number> = {
+    convention: 0,
+    pattern: 0,
+    failure: 0,
+    decision: 0,
+    reference: 0,
+    guide: 0,
+  };
+
+  const classificationDistribution: Record<Classification, number> = {
+    foundational: 0,
+    tactical: 0,
+    observational: 0,
+  };
+
+  let staleCount = 0;
+  let oldestTimestamp: string | null = null;
+  let newestTimestamp: string | null = null;
+
+  // Calculate metrics
+  for (const record of records) {
+    // Type distribution
+    typeDistribution[record.type]++;
+
+    // Classification distribution
+    classificationDistribution[record.classification]++;
+
+    // Stale count
+    if (isRecordStale(record, now, shelfLife)) {
+      staleCount++;
+    }
+
+    // Oldest/newest timestamps
+    const recordedAt = record.recorded_at;
+    if (!oldestTimestamp || recordedAt < oldestTimestamp) {
+      oldestTimestamp = recordedAt;
+    }
+    if (!newestTimestamp || recordedAt > newestTimestamp) {
+      newestTimestamp = recordedAt;
+    }
+  }
+
+  // Governance utilization (as percentage, 0-100)
+  const governanceUtilization = maxEntries > 0
+    ? Math.round((records.length / maxEntries) * 100)
+    : 0;
+
+  return {
+    governance_utilization: governanceUtilization,
+    stale_count: staleCount,
+    type_distribution: typeDistribution,
+    classification_distribution: classificationDistribution,
+    oldest_timestamp: oldestTimestamp,
+    newest_timestamp: newestTimestamp,
+  };
 }
