@@ -33,6 +33,7 @@ interface PrimeOptions {
   export?: string;
   domain?: string[];
   context?: boolean;
+  files?: string[];
   budget?: string;
   noLimit?: boolean;
 }
@@ -77,6 +78,7 @@ export function registerPrimeCommand(program: Command): void {
         .default("markdown"),
     )
     .option("--context", "filter records to only those relevant to changed files")
+    .option("--files <paths...>", "filter records to only those relevant to specified files")
     .option("--export <path>", "export output to a file")
     .option("--budget <tokens>", `token budget for output (default: ${DEFAULT_BUDGET})`)
     .option("--no-limit", "disable token budget limit")
@@ -107,9 +109,25 @@ export function registerPrimeCommand(program: Command): void {
           ? unique
           : config.domains;
 
-        // Resolve changed files for --context filtering
-        let changedFiles: string[] | undefined;
-        if (options.context) {
+        // Check for mutually exclusive options
+        if (options.context && options.files) {
+          const msg = "Cannot use --context and --files together. Choose one.";
+          if (jsonMode) {
+            outputJsonError("prime", msg);
+          } else {
+            console.error(`Error: ${msg}`);
+          }
+          process.exitCode = 1;
+          return;
+        }
+
+        // Resolve files for filtering
+        let filesToFilter: string[] | undefined;
+        if (options.files) {
+          // Use explicit file paths from --files
+          filesToFilter = options.files;
+        } else if (options.context) {
+          // Use git changed files from --context
           const cwd = process.cwd();
           if (!isGitRepo(cwd)) {
             const msg = "Not in a git repository. --context requires git.";
@@ -121,8 +139,8 @@ export function registerPrimeCommand(program: Command): void {
             process.exitCode = 1;
             return;
           }
-          changedFiles = getChangedFiles(cwd, "HEAD~1");
-          if (changedFiles.length === 0) {
+          filesToFilter = getChangedFiles(cwd, "HEAD~1");
+          if (filesToFilter.length === 0) {
             if (jsonMode) {
               outputJsonError("prime", "No changed files found. Nothing to filter by.");
             } else {
@@ -145,10 +163,10 @@ export function registerPrimeCommand(program: Command): void {
           for (const domain of targetDomains) {
             const filePath = getExpertisePath(domain);
             let records = await readExpertiseFile(filePath);
-            if (changedFiles) {
-              records = filterByContext(records, changedFiles);
+            if (filesToFilter) {
+              records = filterByContext(records, filesToFilter);
             }
-            if (!changedFiles || records.length > 0) {
+            if (!filesToFilter || records.length > 0) {
               domains.push({ domain, entry_count: records.length, records });
             }
           }
@@ -161,8 +179,8 @@ export function registerPrimeCommand(program: Command): void {
           for (const domain of targetDomains) {
             const filePath = getExpertisePath(domain);
             let records = await readExpertiseFile(filePath);
-            if (changedFiles) {
-              records = filterByContext(records, changedFiles);
+            if (filesToFilter) {
+              records = filterByContext(records, filesToFilter);
               if (records.length === 0) continue;
             }
             allDomainRecords.push({ domain, records });
