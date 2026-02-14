@@ -20,6 +20,7 @@ import { registerDeleteCommand } from "./commands/delete.js";
 import { registerLearnCommand } from "./commands/learn.js";
 import { registerCompactCommand } from "./commands/compact.js";
 import { registerUpdateCommand } from "./commands/update.js";
+import { registerDiffCommand } from "./commands/diff.js";
 
 const program = new Command();
 
@@ -47,6 +48,7 @@ registerSyncCommand(program);
 registerDeleteCommand(program);
 registerLearnCommand(program);
 registerCompactCommand(program);
+registerDiffCommand(program);
 registerUpdateCommand(program);
 
 program.parse();
