@@ -32,6 +32,7 @@ interface PrimeOptions {
   format?: PrimeFormat;
   export?: string;
   domain?: string[];
+  excludeDomain?: string[];
   context?: boolean;
   budget?: string;
   noLimit?: boolean;
@@ -71,6 +72,7 @@ export function registerPrimeCommand(program: Command): void {
     .option("-v, --verbose", "full output with section headers and recording instructions")
     .option("--mcp", "output in MCP-compatible JSON format")
     .option("--domain <domains...>", "domain(s) to include")
+    .option("--exclude-domain <domains...>", "domain(s) to exclude")
     .addOption(
       new Option("--format <format>", "output format")
         .choices(["markdown", "xml", "plain"])
@@ -103,9 +105,26 @@ export function registerPrimeCommand(program: Command): void {
           }
         }
 
-        const targetDomains = unique.length > 0
+        const excluded = options.excludeDomain ?? [];
+        for (const d of excluded) {
+          if (!config.domains.includes(d)) {
+            if (jsonMode) {
+              outputJsonError("prime", `Excluded domain "${d}" not found in config. Available domains: ${config.domains.join(", ")}`);
+            } else {
+              console.error(
+                `Error: Excluded domain "${d}" not found in config. Available domains: ${config.domains.join(", ")}`,
+              );
+            }
+            process.exitCode = 1;
+            return;
+          }
+        }
+
+        let targetDomains = unique.length > 0
           ? unique
           : config.domains;
+
+        targetDomains = targetDomains.filter(d => !excluded.includes(d));
 
         // Resolve changed files for --context filtering
         let changedFiles: string[] | undefined;
