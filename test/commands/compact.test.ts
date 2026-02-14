@@ -94,6 +94,300 @@ describe("compact command", () => {
     });
   });
 
+  describe("auto", () => {
+    it("merges convention content fields", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "convention",
+          content: "Convention A",
+          classification: "tactical",
+          recorded_at: daysAgo(10),
+          id: "mx-test1",
+        },
+        {
+          type: "convention",
+          content: "Convention B",
+          classification: "tactical",
+          recorded_at: daysAgo(8),
+          id: "mx-test2",
+        },
+        {
+          type: "convention",
+          content: "Convention C",
+          classification: "observational",
+          recorded_at: daysAgo(5),
+          id: "mx-test3",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.type).toBe("convention");
+      if (result.type === "convention") {
+        expect(result.content).toBe("Convention A\n\nConvention B\n\nConvention C");
+      }
+      expect(result.classification).toBe("foundational");
+      expect(result.supersedes).toEqual(["mx-test1", "mx-test2", "mx-test3"]);
+      expect(result.id).toBeDefined();
+    });
+
+    it("merges pattern names by choosing longest", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "pattern",
+          name: "short",
+          description: "Description 1",
+          classification: "tactical",
+          recorded_at: daysAgo(20),
+          id: "mx-test1",
+        },
+        {
+          type: "pattern",
+          name: "much-longer-name",
+          description: "Description 2",
+          classification: "tactical",
+          recorded_at: daysAgo(18),
+          id: "mx-test2",
+        },
+        {
+          type: "pattern",
+          name: "mid",
+          description: "Description 3",
+          classification: "tactical",
+          recorded_at: daysAgo(16),
+          id: "mx-test3",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.type).toBe("pattern");
+      if (result.type === "pattern") {
+        expect(result.name).toBe("much-longer-name");
+        expect(result.description).toBe("Description 1\n\nDescription 2\n\nDescription 3");
+      }
+      expect(result.classification).toBe("foundational");
+      expect(result.supersedes).toEqual(["mx-test1", "mx-test2", "mx-test3"]);
+    });
+
+    it("merges failure descriptions and resolutions", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "failure",
+          description: "Failure 1",
+          resolution: "Fix 1",
+          classification: "tactical",
+          recorded_at: daysAgo(20),
+          id: "mx-test1",
+        },
+        {
+          type: "failure",
+          description: "Failure 2",
+          resolution: "Fix 2",
+          classification: "tactical",
+          recorded_at: daysAgo(18),
+          id: "mx-test2",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.type).toBe("failure");
+      if (result.type === "failure") {
+        expect(result.description).toBe("Failure 1\n\nFailure 2");
+        expect(result.resolution).toBe("Fix 1\n\nFix 2");
+      }
+      expect(result.classification).toBe("foundational");
+    });
+
+    it("merges decision titles by choosing longest", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "decision",
+          title: "Short",
+          rationale: "Rationale 1",
+          classification: "tactical",
+          recorded_at: daysAgo(20),
+          id: "mx-test1",
+        },
+        {
+          type: "decision",
+          title: "Much longer decision title",
+          rationale: "Rationale 2",
+          classification: "tactical",
+          recorded_at: daysAgo(18),
+          id: "mx-test2",
+        },
+        {
+          type: "decision",
+          title: "Medium",
+          rationale: "Rationale 3",
+          classification: "tactical",
+          recorded_at: daysAgo(16),
+          id: "mx-test3",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.type).toBe("decision");
+      if (result.type === "decision") {
+        expect(result.title).toBe("Much longer decision title");
+        expect(result.rationale).toBe("Rationale 1\n\nRationale 2\n\nRationale 3");
+      }
+      expect(result.classification).toBe("foundational");
+    });
+
+    it("preserves and merges tags across records", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "convention",
+          content: "Convention A",
+          classification: "tactical",
+          recorded_at: daysAgo(10),
+          tags: ["tag1", "tag2"],
+          id: "mx-test1",
+        },
+        {
+          type: "convention",
+          content: "Convention B",
+          classification: "tactical",
+          recorded_at: daysAgo(8),
+          tags: ["tag2", "tag3"],
+          id: "mx-test2",
+        },
+        {
+          type: "convention",
+          content: "Convention C",
+          classification: "tactical",
+          recorded_at: daysAgo(6),
+          tags: ["tag4"],
+          id: "mx-test3",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.tags).toBeDefined();
+      expect(result.tags).toEqual(expect.arrayContaining(["tag1", "tag2", "tag3", "tag4"]));
+      expect(result.tags?.length).toBe(4); // Deduplicated
+    });
+
+    it("preserves and merges files for pattern types", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "pattern",
+          name: "pattern-1",
+          description: "Description 1",
+          classification: "tactical",
+          recorded_at: daysAgo(20),
+          files: ["src/file1.ts"],
+          id: "mx-test1",
+        },
+        {
+          type: "pattern",
+          name: "pattern-2",
+          description: "Description 2",
+          classification: "tactical",
+          recorded_at: daysAgo(18),
+          files: ["src/file2.ts", "src/file1.ts"],
+          id: "mx-test2",
+        },
+        {
+          type: "pattern",
+          name: "pattern-3",
+          description: "Description 3",
+          classification: "tactical",
+          recorded_at: daysAgo(16),
+          files: ["src/file3.ts"],
+          id: "mx-test3",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      if (result.type === "pattern") {
+        expect(result.files).toBeDefined();
+        expect(result.files).toEqual(expect.arrayContaining(["src/file1.ts", "src/file2.ts", "src/file3.ts"]));
+        expect(result.files?.length).toBe(3); // Deduplicated
+      }
+    });
+
+    it("merges reference types correctly", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "reference",
+          name: "short",
+          description: "Desc 1",
+          classification: "tactical",
+          recorded_at: daysAgo(10),
+          id: "mx-test1",
+        },
+        {
+          type: "reference",
+          name: "much-longer-reference-name",
+          description: "Desc 2",
+          classification: "tactical",
+          recorded_at: daysAgo(8),
+          id: "mx-test2",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.type).toBe("reference");
+      if (result.type === "reference") {
+        expect(result.name).toBe("much-longer-reference-name");
+        expect(result.description).toBe("Desc 1\n\nDesc 2");
+      }
+    });
+
+    it("merges guide types correctly", async () => {
+      const { mergeRecords } = await import("../../src/commands/compact.js");
+
+      const records: ExpertiseRecord[] = [
+        {
+          type: "guide",
+          name: "short-guide",
+          description: "Guide 1",
+          classification: "tactical",
+          recorded_at: daysAgo(10),
+          id: "mx-test1",
+        },
+        {
+          type: "guide",
+          name: "very-long-guide-name",
+          description: "Guide 2",
+          classification: "tactical",
+          recorded_at: daysAgo(8),
+          id: "mx-test2",
+        },
+      ];
+
+      const result = mergeRecords(records);
+
+      expect(result.type).toBe("guide");
+      if (result.type === "guide") {
+        expect(result.name).toBe("very-long-guide-name");
+        expect(result.description).toBe("Guide 1\n\nGuide 2");
+      }
+    });
+  });
+
   describe("apply", () => {
     it("compacts multiple conventions into one", async () => {
       const filePath = getExpertisePath("testing", tmpDir);

@@ -92,6 +92,7 @@ export function registerCompactCommand(program: Command): void {
     .description("Compact records: analyze candidates or apply a compaction")
     .option("--analyze", "show compaction candidates")
     .option("--apply", "apply a compaction (replace records with summary)")
+    .option("--auto", "automatically compact all candidates")
     .option("--records <ids>", "comma-separated record IDs to compact")
     .option("--type <type>", "record type for the replacement")
     .option("--name <name>", "name for replacement (pattern/reference/guide)")
@@ -109,6 +110,8 @@ export function registerCompactCommand(program: Command): void {
 
         if (options.analyze) {
           await handleAnalyze(jsonMode);
+        } else if (options.auto) {
+          await handleAuto(jsonMode);
         } else if (options.apply) {
           if (!domain) {
             const msg = "Domain is required for --apply.";
@@ -122,7 +125,7 @@ export function registerCompactCommand(program: Command): void {
           }
           await handleApply(domain, options, jsonMode);
         } else {
-          const msg = "Specify --analyze or --apply.";
+          const msg = "Specify --analyze, --auto, or --apply.";
           if (jsonMode) {
             outputJsonError("compact", msg);
           } else {
@@ -175,6 +178,215 @@ async function handleAnalyze(jsonMode: boolean): Promise<void> {
   console.log(
     chalk.dim("To compact, run: mulch compact <domain> --apply --records <ids> --type <type> [fields...]"),
   );
+}
+
+async function handleAuto(jsonMode: boolean): Promise<void> {
+  const config = await readConfig();
+  const now = new Date();
+  const shelfLife = config.classification_defaults.shelf_life;
+
+  let totalCompacted = 0;
+  const results: Array<{ domain: string; type: RecordType; count: number }> = [];
+
+  for (const domain of config.domains) {
+    const filePath = getExpertisePath(domain);
+
+    await withFileLock(filePath, async () => {
+      const records = await readExpertiseFile(filePath);
+      if (records.length < 2) return;
+
+      const candidates = findCandidates(domain, records, now, shelfLife);
+      if (candidates.length === 0) return;
+
+      let updatedRecords = [...records];
+
+      for (const candidate of candidates) {
+        // Find the actual record objects for this candidate
+        const recordsToCompact = updatedRecords.filter(
+          (r) => r.type === candidate.type && candidate.records.some((cr) => cr.id === r.id)
+        );
+
+        if (recordsToCompact.length < 2) continue;
+
+        // Create merged replacement record
+        const replacement = mergeRecords(recordsToCompact);
+
+        // Remove old records
+        const idsToRemove = new Set(recordsToCompact.map((r) => r.id));
+        updatedRecords = updatedRecords.filter((r) => !idsToRemove.has(r.id));
+
+        // Add replacement
+        updatedRecords.push(replacement);
+
+        totalCompacted += recordsToCompact.length;
+        results.push({ domain, type: candidate.type, count: recordsToCompact.length });
+      }
+
+      // Write back if changes were made
+      if (updatedRecords.length !== records.length) {
+        await writeExpertiseFile(filePath, updatedRecords);
+      }
+    });
+  }
+
+  if (jsonMode) {
+    outputJson({
+      success: true,
+      command: "compact",
+      action: "auto",
+      compacted: totalCompacted,
+      results,
+    });
+    return;
+  }
+
+  if (totalCompacted === 0) {
+    console.log(chalk.green("No compaction candidates found."));
+    return;
+  }
+
+  console.log(chalk.green(`✓ Auto-compacted ${totalCompacted} records across ${results.length} groups`));
+  for (const r of results) {
+    console.log(chalk.dim(`  ${r.domain}/${r.type}: ${r.count} records → 1`));
+  }
+}
+
+export function mergeRecords(records: ExpertiseRecord[]): ExpertiseRecord {
+  if (records.length === 0) {
+    throw new Error("Cannot merge empty record list");
+  }
+
+  const type = records[0].type;
+  const recordedAt = new Date().toISOString();
+  const supersedes = records.map((r) => r.id).filter(Boolean) as string[];
+
+  // Merge tags (unique union)
+  const allTags = records.flatMap((r) => r.tags ?? []);
+  const tags = allTags.length > 0 ? Array.from(new Set(allTags)) : undefined;
+
+  // Merge files (for pattern/reference types)
+  const allFiles = records.flatMap((r) => ("files" in r ? r.files ?? [] : []));
+  const files = allFiles.length > 0 ? Array.from(new Set(allFiles)) : undefined;
+
+  let result: ExpertiseRecord;
+
+  switch (type) {
+    case "convention": {
+      const contents = records.map((r) => (r as { content: string }).content);
+      const content = contents.join("\n\n");
+      result = {
+        type: "convention",
+        content,
+        classification: "foundational",
+        recorded_at: recordedAt,
+        supersedes,
+      };
+      if (tags) result.tags = tags;
+      break;
+    }
+
+    case "pattern": {
+      const patterns = records as Array<{ name: string; description: string }>;
+      const name = patterns.reduce((longest, p) =>
+        p.name.length > longest.length ? p.name : longest,
+        patterns[0].name
+      );
+      const description = patterns.map((p) => p.description).join("\n\n");
+      result = {
+        type: "pattern",
+        name,
+        description,
+        classification: "foundational",
+        recorded_at: recordedAt,
+        supersedes,
+      };
+      if (tags) result.tags = tags;
+      if (files) result.files = files;
+      break;
+    }
+
+    case "failure": {
+      const failures = records as Array<{ description: string; resolution: string }>;
+      const description = failures.map((f) => f.description).join("\n\n");
+      const resolution = failures.map((f) => f.resolution).join("\n\n");
+      result = {
+        type: "failure",
+        description,
+        resolution,
+        classification: "foundational",
+        recorded_at: recordedAt,
+        supersedes,
+      };
+      if (tags) result.tags = tags;
+      break;
+    }
+
+    case "decision": {
+      const decisions = records as Array<{ title: string; rationale: string }>;
+      const title = decisions.reduce((longest, d) =>
+        d.title.length > longest.length ? d.title : longest,
+        decisions[0].title
+      );
+      const rationale = decisions.map((d) => d.rationale).join("\n\n");
+      result = {
+        type: "decision",
+        title,
+        rationale,
+        classification: "foundational",
+        recorded_at: recordedAt,
+        supersedes,
+      };
+      if (tags) result.tags = tags;
+      break;
+    }
+
+    case "reference": {
+      const references = records as Array<{ name: string; description: string }>;
+      const name = references.reduce((longest, r) =>
+        r.name.length > longest.length ? r.name : longest,
+        references[0].name
+      );
+      const description = references.map((r) => r.description).join("\n\n");
+      result = {
+        type: "reference",
+        name,
+        description,
+        classification: "foundational",
+        recorded_at: recordedAt,
+        supersedes,
+      };
+      if (tags) result.tags = tags;
+      if (files) result.files = files;
+      break;
+    }
+
+    case "guide": {
+      const guides = records as Array<{ name: string; description: string }>;
+      const name = guides.reduce((longest, g) =>
+        g.name.length > longest.length ? g.name : longest,
+        guides[0].name
+      );
+      const description = guides.map((g) => g.description).join("\n\n");
+      result = {
+        type: "guide",
+        name,
+        description,
+        classification: "foundational",
+        recorded_at: recordedAt,
+        supersedes,
+      };
+      if (tags) result.tags = tags;
+      break;
+    }
+
+    default: {
+      throw new Error(`Unknown record type: ${type}`);
+    }
+  }
+
+  // Generate ID for the merged record
+  result.id = generateRecordId(result);
+  return result;
 }
 
 async function handleApply(
