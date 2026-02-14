@@ -18,6 +18,109 @@ import type {
   Evidence,
 } from "../schemas/record.js";
 import { outputJson, outputJsonError } from "../utils/json-output.js";
+import { readFileSync } from "node:fs";
+
+/**
+ * Process records from stdin (JSON single object or array)
+ * Validates, dedups, and appends with file locking
+ */
+export async function processStdinRecords(
+  domain: string,
+  jsonMode: boolean,
+  force: boolean,
+  stdinData?: string,
+  cwd?: string,
+): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
+  const config = await readConfig(cwd);
+
+  if (!config.domains.includes(domain)) {
+    throw new Error(`Domain "${domain}" not found in config. Available domains: ${config.domains.join(", ") || "(none)"}`);
+  }
+
+  // Read stdin (or use provided data for testing)
+  const inputData = stdinData ?? readFileSync(0, "utf-8");
+  let inputRecords: unknown[];
+
+  try {
+    const parsed = JSON.parse(inputData);
+    inputRecords = Array.isArray(parsed) ? parsed : [parsed];
+  } catch (err) {
+    throw new Error(`Failed to parse JSON from stdin: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Validate each record against schema
+  const ajv = new Ajv();
+  const validate = ajv.compile(recordSchema);
+
+  const errors: string[] = [];
+  const validRecords: ExpertiseRecord[] = [];
+
+  for (let i = 0; i < inputRecords.length; i++) {
+    const record = inputRecords[i];
+
+    // Ensure recorded_at is set
+    if (typeof record === "object" && record !== null && !("recorded_at" in record)) {
+      (record as Record<string, unknown>).recorded_at = new Date().toISOString();
+    }
+
+    if (!validate(record)) {
+      const validationErrors = (validate.errors ?? [])
+        .map((err) => `${err.instancePath} ${err.message}`)
+        .join("; ");
+      errors.push(`Record ${i}: ${validationErrors}`);
+      continue;
+    }
+
+    validRecords.push(record as ExpertiseRecord);
+  }
+
+  if (validRecords.length === 0) {
+    return { created: 0, updated: 0, skipped: 0, errors };
+  }
+
+  // Process valid records with file locking
+  const filePath = getExpertisePath(domain, cwd);
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  await withFileLock(filePath, async () => {
+    const existing = await readExpertiseFile(filePath);
+    let currentRecords = [...existing];
+
+    for (const record of validRecords) {
+      const dup = findDuplicate(currentRecords, record);
+
+      if (dup && !force) {
+        const isNamed =
+          record.type === "pattern" ||
+          record.type === "decision" ||
+          record.type === "reference" ||
+          record.type === "guide";
+
+        if (isNamed) {
+          // Upsert: replace in place
+          currentRecords[dup.index] = record;
+          updated++;
+        } else {
+          // Exact match: skip
+          skipped++;
+        }
+      } else {
+        // New record: append
+        currentRecords.push(record);
+        created++;
+      }
+    }
+
+    // Write all changes at once
+    if (created > 0 || updated > 0) {
+      await writeExpertiseFile(filePath, currentRecords);
+    }
+  });
+
+  return { created, updated, skipped, errors };
+}
 
 export function registerRecordCommand(program: Command): void {
   program
@@ -49,6 +152,7 @@ export function registerRecordCommand(program: Command): void {
     .option("--relates-to <ids>", "comma-separated record IDs this relates to")
     .option("--supersedes <ids>", "comma-separated record IDs this supersedes")
     .option("--force", "force recording even if duplicate exists")
+    .option("--stdin", "read JSON record(s) from stdin (single object or array)")
     .action(
       async (
         domain: string,
@@ -56,6 +160,62 @@ export function registerRecordCommand(program: Command): void {
         options: Record<string, unknown>,
       ) => {
         const jsonMode = program.opts().json === true;
+
+        // Handle --stdin mode
+        if (options.stdin === true) {
+          try {
+            const result = await processStdinRecords(
+              domain,
+              jsonMode,
+              options.force === true,
+            );
+
+            if (result.errors.length > 0) {
+              if (jsonMode) {
+                outputJsonError("record", `Validation errors: ${result.errors.join("; ")}`);
+              } else {
+                console.error(chalk.red("Validation errors:"));
+                for (const error of result.errors) {
+                  console.error(chalk.red(`  ${error}`));
+                }
+              }
+            }
+
+            if (jsonMode) {
+              outputJson({
+                success: result.errors.length === 0 || result.created + result.updated > 0,
+                command: "record",
+                domain,
+                created: result.created,
+                updated: result.updated,
+                skipped: result.skipped,
+                errors: result.errors,
+              });
+            } else {
+              if (result.created > 0) {
+                console.log(chalk.green(`✔ Created ${result.created} record(s) in ${domain}`));
+              }
+              if (result.updated > 0) {
+                console.log(chalk.green(`✔ Updated ${result.updated} record(s) in ${domain}`));
+              }
+              if (result.skipped > 0) {
+                console.log(chalk.yellow(`Skipped ${result.skipped} duplicate(s) in ${domain}`));
+              }
+            }
+
+            if (result.errors.length > 0 && result.created + result.updated === 0) {
+              process.exitCode = 1;
+            }
+          } catch (err) {
+            if (jsonMode) {
+              outputJsonError("record", err instanceof Error ? err.message : String(err));
+            } else {
+              console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
+            }
+            process.exitCode = 1;
+          }
+          return;
+        }
         const config = await readConfig();
 
         if (!config.domains.includes(domain)) {

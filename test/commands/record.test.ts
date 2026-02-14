@@ -17,6 +17,7 @@ import type { ExpertiseRecord } from "../../src/schemas/record.js";
 import _Ajv from "ajv";
 const Ajv = (_Ajv as unknown as { default: typeof _Ajv }).default ?? _Ajv;
 import { recordSchema } from "../../src/schemas/record-schema.js";
+import { processStdinRecords } from "../../src/commands/record.js";
 
 describe("record command", () => {
   let tmpDir: string;
@@ -560,5 +561,230 @@ describe("record command", () => {
     };
 
     expect(validate(record)).toBe(true);
+  });
+});
+
+describe("processStdinRecords", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "mulch-stdin-test-"));
+    await initMulchDir(tmpDir);
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing", "architecture"] },
+      tmpDir,
+    );
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("processes single JSON object from stdin", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+    };
+
+    const result = await processStdinRecords("testing", false, false, JSON.stringify(record), tmpDir);
+
+    expect(result.created).toBe(1);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    expect(records[0].type).toBe("convention");
+    expect((records[0] as { content: string }).content).toBe("Use vitest");
+  });
+
+  it("processes array of JSON objects from stdin", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const records = [
+      {
+        type: "convention",
+        content: "Use vitest",
+        classification: "foundational",
+      },
+      {
+        type: "pattern",
+        name: "test-pattern",
+        description: "Test pattern description",
+        classification: "tactical",
+      },
+    ];
+
+    const result = await processStdinRecords("testing", false, false, JSON.stringify(records), tmpDir);
+
+    expect(result.created).toBe(2);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+
+    const savedRecords = await readExpertiseFile(filePath);
+    expect(savedRecords).toHaveLength(2);
+  });
+
+  it("validates records and reports errors", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const records = [
+      {
+        type: "convention",
+        // missing content field
+        classification: "tactical",
+      },
+      {
+        type: "pattern",
+        name: "valid-pattern",
+        description: "Valid pattern",
+        classification: "tactical",
+      },
+    ];
+
+    const result = await processStdinRecords("testing", false, false, JSON.stringify(records), tmpDir);
+
+    expect(result.created).toBe(1); // Only valid record created
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Record 0");
+
+    const savedRecords = await readExpertiseFile(filePath);
+    expect(savedRecords).toHaveLength(1);
+    expect(savedRecords[0].type).toBe("pattern");
+  });
+
+  it("deduplicates records (skips exact matches)", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: "2025-01-01T00:00:00.000Z",
+    };
+
+    // Add initial record
+    await appendRecord(filePath, record as ExpertiseRecord);
+
+    // Try to add same record via stdin
+    const result = await processStdinRecords("testing", false, false, JSON.stringify(record), tmpDir);
+
+    expect(result.created).toBe(0);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(1);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1); // Still just one
+  });
+
+  it("upserts named records (pattern, decision, reference, guide)", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const originalPattern = {
+      type: "pattern",
+      name: "test-pattern",
+      description: "Original description",
+      classification: "tactical",
+      recorded_at: "2025-01-01T00:00:00.000Z",
+    };
+
+    await appendRecord(filePath, originalPattern as ExpertiseRecord);
+
+    // Update with same name
+    const updatedPattern = {
+      type: "pattern",
+      name: "test-pattern",
+      description: "Updated description",
+      classification: "foundational",
+      recorded_at: "2025-01-02T00:00:00.000Z",
+    };
+
+    const result = await processStdinRecords("testing", false, false, JSON.stringify(updatedPattern), tmpDir);
+
+    expect(result.created).toBe(0);
+    expect(result.updated).toBe(1);
+    expect(result.skipped).toBe(0);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    expect((records[0] as { description: string }).description).toBe("Updated description");
+    expect(records[0].classification).toBe("foundational");
+  });
+
+  it("adds recorded_at if missing", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      // no recorded_at
+    };
+
+    const before = new Date();
+    const result = await processStdinRecords("testing", false, false, JSON.stringify(record), tmpDir);
+    const after = new Date();
+
+    expect(result.created).toBe(1);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    const recordedAt = new Date(records[0].recorded_at);
+    expect(recordedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(recordedAt.getTime()).toBeLessThanOrEqual(after.getTime());
+  });
+
+  it("throws error for invalid domain", async () => {
+    const record = {
+      type: "convention",
+      content: "Test",
+      classification: "tactical",
+    };
+
+    await expect(
+      processStdinRecords("nonexistent", false, false, JSON.stringify(record), tmpDir),
+    ).rejects.toThrow('Domain "nonexistent" not found');
+  });
+
+  it("throws error for invalid JSON", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    await expect(
+      processStdinRecords("testing", false, false, "{ invalid json }", tmpDir),
+    ).rejects.toThrow("Failed to parse JSON from stdin");
+  });
+
+  it("forces duplicate creation with force flag", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: "2025-01-01T00:00:00.000Z",
+    };
+
+    await appendRecord(filePath, record as ExpertiseRecord);
+
+    const result = await processStdinRecords("testing", false, true, JSON.stringify(record), tmpDir); // force=true
+
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(0);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(2);
   });
 });
