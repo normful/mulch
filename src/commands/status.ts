@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { Command } from "commander";
 import chalk from "chalk";
 import { getMulchDir, readConfig, getExpertisePath } from "../utils/config.js";
-import { readExpertiseFile, countRecords, getFileModTime } from "../utils/expertise.js";
+import { readExpertiseFile, countRecords, getFileModTime, calculateDomainHealth } from "../utils/expertise.js";
 import { formatStatusOutput } from "../utils/format.js";
 import { outputJson, outputJsonError } from "../utils/json-output.js";
 
@@ -33,10 +33,17 @@ export function registerStatusCommand(program: Command): void {
           const filePath = getExpertisePath(domain);
           const records = await readExpertiseFile(filePath);
           const lastUpdated = await getFileModTime(filePath);
+          const health = calculateDomainHealth(
+            records,
+            config.governance.max_entries,
+            config.classification_defaults.shelf_life,
+          );
           return {
             domain,
             count: countRecords(records),
             lastUpdated,
+            health,
+            records,
           };
         }),
       );
@@ -49,11 +56,19 @@ export function registerStatusCommand(program: Command): void {
             domain: s.domain,
             count: s.count,
             lastUpdated: s.lastUpdated?.toISOString() ?? null,
+            health: s.health,
           })),
           governance: config.governance,
         });
       } else {
-        const output = formatStatusOutput(domainStats, config.governance);
+        const output = formatStatusOutput(
+          domainStats.map((s) => ({
+            domain: s.domain,
+            count: s.count,
+            lastUpdated: s.lastUpdated,
+          })),
+          config.governance,
+        );
         console.log(output);
       }
     });
