@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-13
+
 ### Added
 
+- `mulch diff` command — shows expertise changes between git refs (`mulch diff HEAD~3`, `mulch diff main..feature`)
+- `--files` flag for `mulch prime` — filter records by file paths (`mulch prime --files src/utils/config.ts`)
+- `--exclude-domain` flag for `mulch prime` — exclude specific domains from output
+- `--stdin` flag for `mulch record` — batch-record from JSON on stdin (single object or array)
+- `--evidence-bead` flag for `mulch record` — link records to bead issue IDs
+- `compact --auto` flag — deterministic auto-compaction that merges groups of same-type records without LLM
+- `compact --auto` guardrails — `--min-group <n>`, `--max-records <n>`, and `--dry-run` flags to control compaction aggressiveness
+- Health metrics in `status --json` — `governance_utilization`, `stale_count`, `staleness_ratio`, classification breakdowns per domain
+- Functional API export (`src/index.ts`) — programmatic access to config, expertise, and schema utilities
+- Optional `bead` field on Evidence type for linking records to issue trackers
 - CONTRIBUTING.md with fork/branch workflow, ESM conventions, and test guidelines
 - SECURITY.md with private vulnerability reporting via GitHub Security Advisories
 - PR template and issue templates (bug report, feature request)
@@ -18,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `record --stdin` infers record type from JSON input when `--type` is omitted
+- `record --stdin` defaults classification to `tactical` when not specified
 - Auto-tag git releases in publish workflow on version bump
 - Enabled auto-delete of merged PR branches
 - Required CI status checks on main branch protection
@@ -25,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `--full` flag being ignored in `prime` command
+- `--files` flag referencing undefined variable in `prime` command
 
 ### Security
 
@@ -109,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prime output formats: `xml`, `plain`, `markdown`, `--mcp` (JSON)
 - Context-aware prime via `--context` (filters by git changed files)
 
-[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jayminwest/mulch/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/jayminwest/mulch/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jayminwest/mulch/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jayminwest/mulch/compare/v0.2.2...v0.2.3

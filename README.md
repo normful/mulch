@@ -68,14 +68,15 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 |---------|-------------|
 | `mulch init` | Initialize `.mulch/` in the current project |
 | `mulch add <domain>` | Add a new expertise domain |
-| `mulch record <domain> --type <type>` | Record an expertise record (`--tags`, `--force`, `--relates-to`, `--supersedes`) |
+| `mulch record <domain> --type <type>` | Record an expertise record (`--tags`, `--force`, `--relates-to`, `--supersedes`, `--stdin`, `--evidence-bead`) |
 | `mulch edit <domain> <id>` | Edit an existing record by ID or 1-based index |
 | `mulch delete <domain> <id>` | Delete a record by ID or 1-based index |
 | `mulch query [domain]` | Query expertise (use `--all` for all domains) |
-| `mulch prime [domains...]` | Output AI-optimized expertise context (`--budget`, `--no-limit`, `--context`, `--format`, `--export`) |
+| `mulch prime [domains...]` | Output AI-optimized expertise context (`--budget`, `--no-limit`, `--context`, `--files`, `--exclude-domain`, `--format`, `--export`) |
 | `mulch search [query]` | Search records across domains (`--domain`, `--type`, `--tag` filters) |
-| `mulch compact [domain]` | Analyze compaction candidates or apply a compaction (`--analyze`, `--apply`) |
-| `mulch status` | Show expertise freshness and counts |
+| `mulch compact [domain]` | Analyze compaction candidates or apply a compaction (`--analyze`, `--auto`, `--apply`, `--dry-run`, `--min-group`, `--max-records`) |
+| `mulch diff [ref]` | Show expertise changes between git refs (`mulch diff HEAD~3`, `mulch diff main..feature`) |
+| `mulch status` | Show expertise freshness and counts (`--json` for health metrics) |
 | `mulch validate` | Schema validation across all files |
 | `mulch doctor` | Run health checks on expertise records (`--fix` to auto-fix) |
 | `mulch setup [provider]` | Install provider-specific hooks (claude, cursor, codex, gemini, windsurf, aider) |
@@ -176,6 +177,26 @@ The `--apply`, default (non-dry-run), and `--fix` variants acquire locks and are
 - **Stale locks**: Locks older than 30 seconds are automatically cleaned up (e.g., after a crash).
 - **`mulch sync`**: Uses git's own locking for commits. Multiple agents syncing on the same branch will contend on git's ref lock — coordinate sync timing or use per-agent branches.
 - **`prime --export`**: Multiple agents exporting to the same file path will race. Use unique filenames per agent.
+
+## Programmatic API
+
+Mulch exports core utilities for use as a library:
+
+```typescript
+import {
+  readConfig,
+  getExpertisePath,
+  readExpertiseFile,
+  searchRecords,
+  appendRecord,
+  writeExpertiseFile,
+  findDuplicate,
+  generateRecordId,
+  recordSchema,
+} from "mulch-cli";
+```
+
+Types (`ExpertiseRecord`, `MulchConfig`, `RecordType`, `Classification`, etc.) are also exported.
 
 ## Contributing
 
