@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-02-15
+
+### Changed
+
+- `mulch prime` full/verbose output now documents `mulch learn`, `mulch sync`, `mulch diff`, `mulch compact --auto`, `--files`/`--exclude-domain` flags, `--evidence-bead`/`--evidence-commit` evidence linking, and `--stdin` batch recording
+- Session close protocol (all formats) streamlined from 4 steps to 3: `mulch learn` → `mulch record` → `mulch sync` (replaces manual `mulch validate` + `git add` + `git commit`)
+- Onboard snippet (`CLAUDE.md`/`AGENTS.md`) updated with `mulch prime --files` tip, evidence linking, and `mulch learn`/`mulch sync` workflow
+- Provider setup recipes (Cursor, Codex, Gemini, Windsurf, Aider) updated with same session-end workflow
+
 ## [0.3.0] - 2026-02-13
 
 ### Added
@@ -124,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prime output formats: `xml`, `plain`, `markdown`, `--mcp` (JSON)
 - Context-aware prime via `--context` (filters by git changed files)
 
-[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jayminwest/mulch/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/jayminwest/mulch/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jayminwest/mulch/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/jayminwest/mulch/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jayminwest/mulch/compare/v0.2.3...v0.2.4
