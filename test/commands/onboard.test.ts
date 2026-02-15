@@ -152,7 +152,8 @@ describe("onboard command", () => {
 
       const output = (stdoutSpy.mock.calls[0] as string[])[0];
       expect(output).toContain("Before You Finish");
-      expect(output).toContain("mulch validate");
+      expect(output).toContain("mulch learn");
+      expect(output).toContain("mulch sync");
     } finally {
       stdoutSpy.mockRestore();
     }
@@ -165,7 +166,8 @@ describe("onboard command", () => {
 
       const output = (stdoutSpy.mock.calls[0] as string[])[0];
       expect(output).toContain("Before You Finish");
-      expect(output).toContain("mulch validate");
+      expect(output).toContain("mulch learn");
+      expect(output).toContain("mulch sync");
     } finally {
       stdoutSpy.mockRestore();
     }

@@ -266,6 +266,7 @@ export function formatPrimeOutput(
   lines.push("");
   lines.push("- **Record learnings**: When you discover a pattern, fix a bug, or make a design decision — record it with `mulch record`");
   lines.push("- **Check expertise first**: Before implementing, check if relevant expertise exists with `mulch search` or `mulch prime --context`");
+  lines.push("- **Targeted priming**: Use `mulch prime --files src/foo.ts` to load only records relevant to specific files");
   lines.push("- **Do NOT** store expertise in code comments, markdown files, or memory tools — use `mulch record`");
   lines.push("- Run `mulch doctor` if you are unsure whether records are healthy");
   lines.push("");
@@ -292,13 +293,41 @@ export function formatPrimeOutput(
   lines.push('mulch record <domain> --type guide --name "..." --description "..."');
   lines.push("```");
   lines.push("");
+  lines.push("**Link evidence** to records when available:");
+  lines.push("");
+  lines.push("```bash");
+  lines.push('mulch record <domain> --type pattern --name "..." --description "..." --evidence-commit abc123');
+  lines.push('mulch record <domain> --type decision --title "..." --rationale "..." --evidence-bead beads-xxx');
+  lines.push("```");
+  lines.push("");
+  lines.push("**Batch record** from JSON via stdin:");
+  lines.push("");
+  lines.push("```bash");
+  lines.push('echo \'[{"type":"convention","content":"..."},{"type":"convention","content":"..."}]\' | mulch record <domain> --stdin');
+  lines.push("```");
+  lines.push("");
+  lines.push("## Domain Maintenance");
+  lines.push("");
+  lines.push("When a domain grows large, compact it to keep expertise focused:");
+  lines.push("");
+  lines.push("```bash");
+  lines.push("mulch compact --auto --dry-run     # preview what would be merged");
+  lines.push("mulch compact --auto               # merge same-type record groups");
+  lines.push("```");
+  lines.push("");
+  lines.push("Use `mulch diff` to review what expertise changed:");
+  lines.push("");
+  lines.push("```bash");
+  lines.push("mulch diff HEAD~3                  # see record changes over last 3 commits");
+  lines.push("```");
+  lines.push("");
   lines.push("## Session End");
   lines.push("");
   lines.push("**IMPORTANT**: Before ending your session, record what you learned and sync:");
   lines.push("");
   lines.push("```");
   lines.push("[ ] mulch learn          # see what files changed — decide what to record");
-  lines.push("[ ] mulch doctor         # verify records are healthy");
+  lines.push("[ ] mulch record ...     # record learnings (see above)");
   lines.push("[ ] mulch sync           # validate, stage, and commit .mulch/ changes");
   lines.push("```");
   lines.push("");
@@ -528,10 +557,9 @@ export function getSessionEndReminder(format: PrimeFormat): string {
         "<session_close_protocol priority=\"critical\">",
         "  <instruction>Before saying done or complete, you MUST run this checklist:</instruction>",
         "  <checklist>",
-        "    <step>Review your work for insights worth preserving (conventions, patterns, failures, decisions)</step>",
+        "    <step>mulch learn — see what files changed, decide what to record</step>",
         "    <step>mulch record &lt;domain&gt; --type &lt;type&gt; --description &quot;...&quot;</step>",
-        "    <step>mulch validate</step>",
-        "    <step>git add .mulch/ &amp;&amp; git commit -m &quot;mulch: record learnings&quot;</step>",
+        "    <step>mulch sync — validate, stage, and commit .mulch/ changes</step>",
         "  </checklist>",
         "  <warning>NEVER skip this. Unrecorded learnings are lost for the next session.</warning>",
         "</session_close_protocol>",
@@ -542,11 +570,9 @@ export function getSessionEndReminder(format: PrimeFormat): string {
         "",
         "Before saying \"done\" or \"complete\", you MUST run this checklist:",
         "",
-        "[ ] 1. Review your work for insights worth preserving",
-        "       (conventions, patterns, failures, decisions)",
+        "[ ] 1. mulch learn              (see what files changed — decide what to record)",
         "[ ] 2. mulch record <domain> --type <type> --description \"...\"",
-        "[ ] 3. mulch validate",
-        "[ ] 4. git add .mulch/ && git commit -m \"mulch: record learnings\"",
+        "[ ] 3. mulch sync               (validate, stage, and commit .mulch/ changes)",
         "",
         "NEVER skip this. Unrecorded learnings are lost for the next session.",
       ].join("\n");
@@ -557,11 +583,9 @@ export function getSessionEndReminder(format: PrimeFormat): string {
         "**CRITICAL**: Before saying \"done\" or \"complete\", you MUST run this checklist:",
         "",
         "```",
-        "[ ] 1. Review your work for insights worth preserving",
-        "       (conventions, patterns, failures, decisions)",
+        "[ ] 1. mulch learn              # see what files changed — decide what to record",
         "[ ] 2. mulch record <domain> --type <type> --description \"...\"",
-        "[ ] 3. mulch validate",
-        "[ ] 4. git add .mulch/ && git commit -m \"mulch: record learnings\"",
+        "[ ] 3. mulch sync               # validate, stage, and commit .mulch/ changes",
         "```",
         "",
         "**NEVER skip this.** Unrecorded learnings are lost for the next session.",

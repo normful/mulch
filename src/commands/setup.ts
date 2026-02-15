@@ -306,6 +306,7 @@ mulch prime
 \`\`\`
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+Use \`mulch prime --files src/foo.ts\` to load only records relevant to specific files.
 
 **Before completing your task**, review your work for insights worth preserving — conventions discovered,
 patterns applied, failures encountered, or decisions made — and record them:
@@ -314,7 +315,15 @@ patterns applied, failures encountered, or decisions made — and record them:
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
 \`\`\`
 
-Run \`mulch --help\` for full usage.
+Link evidence: \`--evidence-commit <sha>\`, \`--evidence-bead <id>\`
+
+**Before you finish**, run:
+
+\`\`\`
+mulch learn        # see what files changed — decide what to record
+mulch record ...   # record learnings
+mulch sync         # validate, stage, and commit .mulch/ changes
+\`\`\`
 `;
 
 const cursorRecipe: ProviderRecipe = {
@@ -368,6 +377,7 @@ const CODEX_SECTION = `${MARKER_START}
 At the start of every session, run \`mulch prime\` to load project expertise.
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+Use \`mulch prime --files src/foo.ts\` to load only records relevant to specific files.
 
 **Before completing your task**, review your work for insights worth preserving — conventions discovered,
 patterns applied, failures encountered, or decisions made — and record them:
@@ -376,7 +386,15 @@ patterns applied, failures encountered, or decisions made — and record them:
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
 \`\`\`
 
-Run \`mulch --help\` for full usage.
+Link evidence: \`--evidence-commit <sha>\`, \`--evidence-bead <id>\`
+
+**Before you finish**, run:
+
+\`\`\`
+mulch learn        # see what files changed — decide what to record
+mulch record ...   # record learnings
+mulch sync         # validate, stage, and commit .mulch/ changes
+\`\`\`
 ${MARKER_END}`;
 
 const codexRecipe: ProviderRecipe = {
@@ -441,6 +459,7 @@ function createMarkdownRecipe(config: MarkdownRecipeConfig): ProviderRecipe {
 At the start of every session, run \`mulch prime\` to load project expertise.
 
 This injects project-specific conventions, patterns, decisions, and other learnings into your context.
+Use \`mulch prime --files src/foo.ts\` to load only records relevant to specific files.
 
 **Before completing your task**, review your work for insights worth preserving — conventions discovered,
 patterns applied, failures encountered, or decisions made — and record them:
@@ -449,7 +468,15 @@ patterns applied, failures encountered, or decisions made — and record them:
 mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> [options]
 \`\`\`
 
-Run \`mulch --help\` for full usage.
+Link evidence: \`--evidence-commit <sha>\`, \`--evidence-bead <id>\`
+
+**Before you finish**, run:
+
+\`\`\`
+mulch learn        # see what files changed — decide what to record
+mulch record ...   # record learnings
+mulch sync         # validate, stage, and commit .mulch/ changes
+\`\`\`
 ${MARKER_END}`;
 
   return {

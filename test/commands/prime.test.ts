@@ -1619,7 +1619,8 @@ describe("prime command", () => {
       // The reminder is appended by prime.ts, but verify the function itself
       expect(reminder).toContain("SESSION CLOSE PROTOCOL");
       expect(reminder).toContain("mulch record");
-      expect(reminder).toContain("mulch validate");
+      expect(reminder).toContain("mulch sync");
+      expect(reminder).toContain("mulch learn");
       expect(reminder).toContain("NEVER skip this");
     });
 
@@ -1628,7 +1629,8 @@ describe("prime command", () => {
       expect(reminder).toContain("# ");
       expect(reminder).toContain("**CRITICAL**");
       expect(reminder).toContain("mulch record <domain>");
-      expect(reminder).toContain('git add .mulch/');
+      expect(reminder).toContain("mulch sync");
+      expect(reminder).toContain("mulch learn");
     });
 
     it("xml reminder uses XML tags", () => {
@@ -1637,7 +1639,8 @@ describe("prime command", () => {
       expect(reminder).toContain("</session_close_protocol>");
       expect(reminder).toContain("<checklist>");
       expect(reminder).toContain("mulch record");
-      expect(reminder).toContain("mulch validate");
+      expect(reminder).toContain("mulch sync");
+      expect(reminder).toContain("mulch learn");
       expect(reminder).toContain("NEVER skip this");
     });
 
@@ -1649,7 +1652,8 @@ describe("prime command", () => {
       // No XML tags (but <domain> and <type> placeholders are fine)
       expect(reminder).not.toContain("</");
       expect(reminder).toContain("mulch record");
-      expect(reminder).toContain("mulch validate");
+      expect(reminder).toContain("mulch sync");
+      expect(reminder).toContain("mulch learn");
       expect(reminder).toContain("NEVER skip this");
     });
 
@@ -1676,7 +1680,8 @@ describe("prime command", () => {
       for (const format of ["markdown", "xml", "plain"] as const) {
         const reminder = getSessionEndReminder(format);
         expect(reminder).toContain("mulch record");
-        expect(reminder).toContain("mulch validate");
+        expect(reminder).toContain("mulch sync");
+        expect(reminder).toContain("mulch learn");
       }
     });
   });
