@@ -18,7 +18,7 @@ import type {
   Evidence,
 } from "../schemas/record.js";
 import { outputJson, outputJsonError } from "../utils/json-output.js";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 
 /**
  * Process records from stdin (JSON single object or array)
@@ -185,6 +185,7 @@ export function registerRecordCommand(program: Command): void {
     .option("--supersedes <ids>", "comma-separated record IDs this supersedes")
     .option("--force", "force recording even if duplicate exists")
     .option("--stdin", "read JSON record(s) from stdin (single object or array)")
+    .option("--batch <file>", "read JSON record(s) from file (single object or array)")
     .option("--dry-run", "preview what would be recorded without writing")
     .addHelpText("after", `
 Required fields per record type:
@@ -194,6 +195,11 @@ Required fields per record type:
   decision     --title, --rationale
   reference    --name, --description (or [content])
   guide        --name, --description (or [content])
+
+Batch recording examples:
+  mulch record cli --batch records.json
+  mulch record cli --batch records.json --dry-run
+  echo '[{"type":"convention","content":"test"}]' > batch.json && mulch record cli --batch batch.json
 `)
     .action(
       async (
@@ -202,6 +208,98 @@ Required fields per record type:
         options: Record<string, unknown>,
       ) => {
         const jsonMode = program.opts().json === true;
+
+        // Handle --batch mode
+        if (options.batch) {
+          const batchFile = options.batch as string;
+          const dryRun = options.dryRun === true;
+
+          if (!existsSync(batchFile)) {
+            if (jsonMode) {
+              outputJsonError("record", `Batch file not found: ${batchFile}`);
+            } else {
+              console.error(chalk.red(`Error: batch file not found: ${batchFile}`));
+            }
+            process.exitCode = 1;
+            return;
+          }
+
+          try {
+            const fileContent = readFileSync(batchFile, "utf-8");
+            const result = await processStdinRecords(
+              domain,
+              jsonMode,
+              options.force === true,
+              dryRun,
+              fileContent,
+            );
+
+            if (result.errors.length > 0) {
+              if (jsonMode) {
+                outputJsonError("record", `Validation errors: ${result.errors.join("; ")}`);
+              } else {
+                console.error(chalk.red("Validation errors:"));
+                for (const error of result.errors) {
+                  console.error(chalk.red(`  ${error}`));
+                }
+              }
+            }
+
+            if (jsonMode) {
+              outputJson({
+                success: result.errors.length === 0 || result.created + result.updated > 0,
+                command: "record",
+                action: dryRun ? "dry-run" : "batch",
+                domain,
+                created: result.created,
+                updated: result.updated,
+                skipped: result.skipped,
+                errors: result.errors,
+              });
+            } else {
+              if (dryRun) {
+                const total = result.created + result.updated;
+                if (total > 0 || result.skipped > 0) {
+                  console.log(chalk.green(`✓ Dry-run complete. Would process ${total} record(s) in ${domain}:`));
+                  if (result.created > 0) {
+                    console.log(chalk.dim(`  Create: ${result.created}`));
+                  }
+                  if (result.updated > 0) {
+                    console.log(chalk.dim(`  Update: ${result.updated}`));
+                  }
+                  if (result.skipped > 0) {
+                    console.log(chalk.dim(`  Skip: ${result.skipped}`));
+                  }
+                  console.log(chalk.dim("  Run without --dry-run to apply changes."));
+                } else {
+                  console.log(chalk.yellow("No records would be processed."));
+                }
+              } else {
+                if (result.created > 0) {
+                  console.log(chalk.green(`✔ Created ${result.created} record(s) in ${domain}`));
+                }
+                if (result.updated > 0) {
+                  console.log(chalk.green(`✔ Updated ${result.updated} record(s) in ${domain}`));
+                }
+                if (result.skipped > 0) {
+                  console.log(chalk.yellow(`Skipped ${result.skipped} duplicate(s) in ${domain}`));
+                }
+              }
+            }
+
+            if (result.errors.length > 0 && result.created + result.updated === 0) {
+              process.exitCode = 1;
+            }
+          } catch (err) {
+            if (jsonMode) {
+              outputJsonError("record", err instanceof Error ? err.message : String(err));
+            } else {
+              console.error(chalk.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
+            }
+            process.exitCode = 1;
+          }
+          return;
+        }
 
         // Handle --stdin mode
         if (options.stdin === true) {

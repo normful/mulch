@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execSync } from "node:child_process";
@@ -1057,5 +1057,239 @@ describe("record command help text", () => {
 
     expect(helpOutput).toContain("reference");
     expect(helpOutput).toContain("guide");
+  });
+
+  it("--help displays batch recording examples", () => {
+    const helpOutput = execSync("node dist/cli.js record --help", {
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+
+    expect(helpOutput).toContain("Batch recording examples:");
+    expect(helpOutput).toContain("--batch records.json");
+    expect(helpOutput).toContain("--batch records.json --dry-run");
+  });
+});
+
+describe("batch mode (--batch)", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "mulch-batch-test-"));
+    await initMulchDir(tmpDir);
+    await writeConfig(
+      { ...DEFAULT_CONFIG, domains: ["testing", "architecture"] },
+      tmpDir,
+    );
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("processes single JSON object from batch file", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest for testing",
+      classification: "foundational",
+    };
+
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(record));
+
+    const result = await processStdinRecords("testing", false, false, false, await readFile(batchFile, "utf-8"), tmpDir);
+
+    expect(result.created).toBe(1);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    expect(records[0].type).toBe("convention");
+    expect((records[0] as { content: string }).content).toBe("Use vitest for testing");
+  });
+
+  it("processes array of JSON objects from batch file", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const records = [
+      {
+        type: "convention",
+        content: "Use vitest",
+        classification: "foundational",
+      },
+      {
+        type: "pattern",
+        name: "test-pattern",
+        description: "Test pattern description",
+        classification: "tactical",
+      },
+    ];
+
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(records));
+
+    const result = await processStdinRecords("testing", false, false, false, await readFile(batchFile, "utf-8"), tmpDir);
+
+    expect(result.created).toBe(2);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+
+    const savedRecords = await readExpertiseFile(filePath);
+    expect(savedRecords).toHaveLength(2);
+  });
+
+  it("batch mode with --dry-run shows what would be created without writing", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+    };
+
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(record));
+
+    const result = await processStdinRecords("testing", false, false, true, await readFile(batchFile, "utf-8"), tmpDir);
+
+    expect(result.created).toBe(1);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+
+    // Verify nothing was actually written
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(0);
+  });
+
+  it("batch mode deduplicates records (skips exact matches)", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: "2025-01-01T00:00:00.000Z",
+    };
+
+    // Add initial record
+    await appendRecord(filePath, record as ExpertiseRecord);
+
+    // Try to add same record via batch file
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(record));
+
+    const result = await processStdinRecords("testing", false, false, false, await readFile(batchFile, "utf-8"), tmpDir);
+
+    expect(result.created).toBe(0);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(1);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1); // Still just one
+  });
+
+  it("batch mode upserts named records (pattern, decision, reference, guide)", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const originalPattern = {
+      type: "pattern",
+      name: "test-pattern",
+      description: "Original description",
+      classification: "tactical",
+      recorded_at: "2025-01-01T00:00:00.000Z",
+    };
+
+    await appendRecord(filePath, originalPattern as ExpertiseRecord);
+
+    // Update with same name
+    const updatedPattern = {
+      type: "pattern",
+      name: "test-pattern",
+      description: "Updated description",
+      classification: "foundational",
+      recorded_at: "2025-01-02T00:00:00.000Z",
+    };
+
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(updatedPattern));
+
+    const result = await processStdinRecords("testing", false, false, false, await readFile(batchFile, "utf-8"), tmpDir);
+
+    expect(result.created).toBe(0);
+    expect(result.updated).toBe(1);
+    expect(result.skipped).toBe(0);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(1);
+    expect((records[0] as { description: string }).description).toBe("Updated description");
+    expect(records[0].classification).toBe("foundational");
+  });
+
+  it("batch mode validates records and reports errors", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const records = [
+      {
+        type: "convention",
+        // missing content field
+        classification: "tactical",
+      },
+      {
+        type: "pattern",
+        name: "valid-pattern",
+        description: "Valid pattern",
+        classification: "tactical",
+      },
+    ];
+
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(records));
+
+    const result = await processStdinRecords("testing", false, false, false, await readFile(batchFile, "utf-8"), tmpDir);
+
+    expect(result.created).toBe(1); // Only valid record created
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Record 0");
+
+    const savedRecords = await readExpertiseFile(filePath);
+    expect(savedRecords).toHaveLength(1);
+    expect(savedRecords[0].type).toBe("pattern");
+  });
+
+  it("batch mode forces duplicate creation with force flag", async () => {
+    const filePath = getExpertisePath("testing", tmpDir);
+    await createExpertiseFile(filePath);
+
+    const record = {
+      type: "convention",
+      content: "Use vitest",
+      classification: "foundational",
+      recorded_at: "2025-01-01T00:00:00.000Z",
+    };
+
+    await appendRecord(filePath, record as ExpertiseRecord);
+
+    const batchFile = join(tmpDir, "batch.json");
+    await writeFile(batchFile, JSON.stringify(record));
+
+    const result = await processStdinRecords("testing", false, true, false, await readFile(batchFile, "utf-8"), tmpDir); // force=true
+
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(0);
+
+    const records = await readExpertiseFile(filePath);
+    expect(records).toHaveLength(2);
   });
 });
