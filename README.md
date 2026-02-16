@@ -68,7 +68,7 @@ Everything is git-tracked. Clone a repo and your agents immediately have the pro
 |---------|-------------|
 | `mulch init` | Initialize `.mulch/` in the current project |
 | `mulch add <domain>` | Add a new expertise domain |
-| `mulch record <domain> --type <type>` | Record an expertise record (`--tags`, `--force`, `--relates-to`, `--supersedes`, `--stdin`, `--evidence-bead`) |
+| `mulch record <domain> --type <type>` | Record an expertise record (`--tags`, `--force`, `--relates-to`, `--supersedes`, `--batch`, `--stdin`, `--evidence-bead`) |
 | `mulch edit <domain> <id>` | Edit an existing record by ID or 1-based index |
 | `mulch delete <domain> <id>` | Delete a record by ID or 1-based index |
 | `mulch query [domain]` | Query expertise (use `--all` for all domains) |
@@ -160,6 +160,23 @@ Locks ensure correctness automatically. If two agents record to the same domain 
 **Multi-worktree / branch-per-agent**:
 
 Each agent works in its own git worktree. On merge, `merge=union` combines all JSONL lines. Run `mulch doctor --fix` after merge to deduplicate if needed.
+
+### Batch recording
+
+For recording multiple records atomically (e.g., at session end), use `--batch` or `--stdin`:
+
+```bash
+# From a JSON file (single object or array of objects)
+mulch record api --batch records.json
+
+# From stdin
+echo '[{"type":"convention","content":"Use UTC timestamps"}]' | mulch record api --stdin
+
+# Preview first
+mulch record api --batch records.json --dry-run
+```
+
+Batch recording uses file locking — safe for concurrent use. Invalid records are skipped with errors; valid records in the same batch still succeed.
 
 **Maintenance during swarm work**:
 

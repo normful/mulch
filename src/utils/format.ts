@@ -300,10 +300,11 @@ export function formatPrimeOutput(
   lines.push('mulch record <domain> --type decision --title "..." --rationale "..." --evidence-bead beads-xxx');
   lines.push("```");
   lines.push("");
-  lines.push("**Batch record** from JSON via stdin:");
+  lines.push("**Batch record** multiple records at once:");
   lines.push("");
   lines.push("```bash");
-  lines.push('echo \'[{"type":"convention","content":"..."},{"type":"convention","content":"..."}]\' | mulch record <domain> --stdin');
+  lines.push('mulch record <domain> --batch records.json  # from file');
+  lines.push('echo \'[{"type":"convention","content":"..."}]\' | mulch record <domain> --stdin  # from stdin');
   lines.push("```");
   lines.push("");
   lines.push("## Domain Maintenance");
