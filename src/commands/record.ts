@@ -157,6 +157,15 @@ export function registerRecordCommand(program: Command): void {
     .option("--supersedes <ids>", "comma-separated record IDs this supersedes")
     .option("--force", "force recording even if duplicate exists")
     .option("--stdin", "read JSON record(s) from stdin (single object or array)")
+    .addHelpText("after", `
+Required fields per record type:
+  convention   [content] or --description
+  pattern      --name, --description (or [content])
+  failure      --description, --resolution
+  decision     --title, --rationale
+  reference    --name, --description (or [content])
+  guide        --name, --description (or [content])
+`)
     .action(
       async (
         domain: string,

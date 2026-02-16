@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { execSync } from "node:child_process";
 import {
   initMulchDir,
   writeConfig,
@@ -806,5 +807,33 @@ describe("processStdinRecords", () => {
 
     const records = await readExpertiseFile(filePath);
     expect(records).toHaveLength(2);
+  });
+});
+
+describe("record command help text", () => {
+  it("--help displays required fields per record type", () => {
+    const helpOutput = execSync("node dist/cli.js record --help", {
+      encoding: "utf-8",
+      timeout: 5000,
+    });
+
+    // Verify the help text section exists
+    expect(helpOutput).toContain("Required fields per record type:");
+
+    // Verify each record type is listed with its required fields
+    expect(helpOutput).toContain("convention");
+    expect(helpOutput).toContain("[content] or --description");
+
+    expect(helpOutput).toContain("pattern");
+    expect(helpOutput).toContain("--name, --description");
+
+    expect(helpOutput).toContain("failure");
+    expect(helpOutput).toContain("--resolution");
+
+    expect(helpOutput).toContain("decision");
+    expect(helpOutput).toContain("--title, --rationale");
+
+    expect(helpOutput).toContain("reference");
+    expect(helpOutput).toContain("guide");
   });
 });
