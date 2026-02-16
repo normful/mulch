@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--batch <file>` flag for `mulch record` — read JSON records from a file (more discoverable alternative to `--stdin`)
+- Batch recording examples in `mulch record --help` output
+
+### Changed
+
+- README: added 'Batch recording' section documenting `--batch` and `--stdin` workflows
+- `mulch prime` verbose output updated to show `--batch` alongside `--stdin`
+
 ## [0.3.1] - 2026-02-15
 
 ### Changed
